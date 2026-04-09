@@ -23,13 +23,20 @@ grants write access to the working tree. The safety guard prevents Codex from
 making unintended commits during review.
 
 ```bash
+# Fail fast if worktree is dirty — rollback can't safely distinguish
+# Codex changes from pre-existing uncommitted work
+if [ -n "$(git status --porcelain)" ]; then
+  echo "WARNING: Worktree has uncommitted changes. Commit or stash before running Codex review."
+fi
+
 # Record HEAD before Codex runs (to detect/revert accidental commits)
 HEAD_BEFORE=$(git rev-parse HEAD)
 ```
 
 **Note:** Do NOT stash uncommitted changes. Stash/pop triggers file-system events
-that confuse IDE watchers, hot-reload, and other processes. The HEAD check alone
-catches the only real risk (accidental commits by Codex).
+that confuse IDE watchers, hot-reload, and other processes. The dirty-worktree
+warning plus HEAD check catches the real risks (accidental commits by Codex and
+rollback destroying unrelated work).
 
 ## Build Command
 
@@ -39,6 +46,7 @@ OUTPUT_FILE="/tmp/codex-review-output-$(date +%s).txt"
 
 # Read config (model selection handled by SKILL.md Step 1)
 CODEX_MODEL=$(jq -r '.codexReview.codeModel // empty' .claude/settings.local.json 2>/dev/null)
+CODEX_EFFORT=$(jq -r '.codexReview.effort // empty' .claude/settings.local.json 2>/dev/null)
 TIMEOUT_MINS=$(jq -r '.codexReview.reviewTimeoutMinutes // 10' .claude/settings.local.json 2>/dev/null || echo "10")
 
 # Build model flag if configured
@@ -47,22 +55,30 @@ if [ -n "$CODEX_MODEL" ]; then
   MODEL_FLAG="--model $CODEX_MODEL"
 fi
 
+# Build effort flag if configured
+EFFORT_ARGS=()
+if [ -n "$CODEX_EFFORT" ]; then
+  EFFORT_ARGS=(-c "model_reasoning_effort=\"$CODEX_EFFORT\"")
+fi
+
 # Execute (use Bash tool's timeout parameter for timeout — NOT shell `timeout`)
 cat {prompt_file} | codex exec \
   --sandbox danger-full-access \
   -c 'approval_policy="never"' \
   -c 'features.search=true' \
   $MODEL_FLAG \
+  "${EFFORT_ARGS[@]}" \
   -o $OUTPUT_FILE \
   -
 EXIT_CODE=$?
 
 # --- Post-Invocation Safety Check ---
-# Revert any commits Codex may have made
+# Revert any commits Codex may have made (only safe if worktree was clean)
 HEAD_AFTER=$(git rev-parse HEAD)
 if [ "$HEAD_BEFORE" != "$HEAD_AFTER" ]; then
   echo "WARNING: Codex made commits during review. Reverting."
-  git reset --hard "$HEAD_BEFORE"
+  git reset --soft "$HEAD_BEFORE"
+  git restore --staged .
 fi
 
 # --- End Safety Check ---
@@ -94,6 +110,7 @@ fi
 |------|---------|
 | `--sandbox danger-full-access` | Enables network access for documentation research |
 | `-c 'approval_policy="never"'` | Non-interactive execution |
+| `-c 'model_reasoning_effort=...'` | Optional, controls reasoning depth (low/medium/high/xhigh) |
 | `-c 'features.search=true'` | Enable web search for documentation research |
 | `--model` | Optional, use configured model or Codex default |
 | `-o $OUTPUT_FILE` | Write final response to file for parsing |

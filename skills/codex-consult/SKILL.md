@@ -104,7 +104,7 @@ Read `.claude/settings.local.json` for settings:
 
 ```bash
 # Read model from config (codexConsult with fallback to codexReview)
-CONSULT_MODEL=$(jq -r '.codexConsult.researchModel // .codexReview.researchModel // "gpt-5.2"' .claude/settings.local.json 2>/dev/null || echo "gpt-5.2")
+CONSULT_MODEL=$(jq -r '.codexConsult.researchModel // .codexReview.codeModel // "gpt-5.2"' .claude/settings.local.json 2>/dev/null || echo "gpt-5.2")
 TIMEOUT_MINS=$(jq -r '.codexConsult.consultTimeoutMinutes // 20' .claude/settings.local.json 2>/dev/null || echo "20")
 ```
 
@@ -181,36 +181,9 @@ that confuse IDE watchers, hot-reload, and other processes. The HEAD check alone
 
 ### Invoke Codex
 
-```bash
-OUTPUT_FILE="/tmp/codex-consult-output-$(date +%s).txt"
-
-# Build model flag
-MODEL_FLAG=""
-if [ -n "$CODEX_MODEL" ]; then
-  MODEL_FLAG="--model $CODEX_MODEL"
-fi
-
-# Execute (use Bash tool's timeout parameter for timeout — NOT shell `timeout`)
-cat {prompt_file} | codex exec \
-  --sandbox danger-full-access \
-  -c 'approval_policy="never"' \
-  -c 'features.search=true' \
-  $MODEL_FLAG \
-  -o $OUTPUT_FILE \
-  -
-EXIT_CODE=$?
-```
-
-### Post-Invocation Safety Check
-
-```bash
-# Check if Codex made any commits
-HEAD_AFTER=$(git rev-parse HEAD)
-if [ "$HEAD_BEFORE" != "$HEAD_AFTER" ]; then
-  echo "WARNING: Codex made commits during consultation. Reverting to pre-consult state."
-  git reset --hard "$HEAD_BEFORE"
-fi
-```
+See [CODEX_INVOCATION.md](CODEX_INVOCATION.md) for the full command, effort handling,
+and safety checks. The invocation file is the single source of truth — do not
+duplicate the command here.
 
 **Important:** Do NOT use `2>&1` — Codex streams progress to stderr and final output to stdout. Merging them corrupts the parseable response.
 
@@ -245,13 +218,15 @@ Alignment Check: All 5 requirements from PRODUCT_SPEC.md addressed
 {/If}
 ```
 
-### Output Format (Programmatic — for generation commands)
+### Output Format (Programmatic — for calling skills)
 
-When invoked by another skill, return structured data:
+When invoked by another skill (`/create-pr`, `/codex-implement`, `/feature-spec`,
+`/product-spec`, `/technical-spec`, `/generate-plan`, or any other caller), return
+structured data:
 
 ```json
 {
-  "status": "pass | pass_with_notes | needs_attention | error | skipped",
+  "status": "<Status>",
   "issues": [],
   "suggestions": [],
   "positive_findings": [],
@@ -261,6 +236,30 @@ When invoked by another skill, return structured data:
     "missing_items": []
   }
 }
+```
+
+**Status enum** — exactly one of:
+
+| Value | Meaning |
+|-------|---------|
+| `pass` | No issues found. Document is ready. |
+| `pass_with_notes` | No blocking issues, but suggestions were generated. |
+| `needs_attention` | One or more issues require human review before proceeding. |
+| `error` | Codex invocation failed (timeout, crash, malformed output). |
+| `skipped` | Pre-flight check failed (not installed, not authenticated, disabled, or running inside Codex). |
+
+**Field descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `Status` | Overall consultation result (see enum above). |
+| `issues` | `string[]` | Actionable problems found in the document. Empty array when none. |
+| `suggestions` | `string[]` | Non-blocking improvement ideas. Empty array when none. |
+| `positive_findings` | `string[]` | Things the document does well. Empty array when none. |
+| `alignment_check` | `object \| null` | Present only when `--upstream` was provided; `null` otherwise. |
+| `alignment_check.checked` | `boolean` | Always `true` when the object is present. |
+| `alignment_check.all_addressed` | `boolean` | `true` if every upstream requirement is covered. |
+| `alignment_check.missing_items` | `string[]` | Upstream requirements not found in the target document. |
 ```
 
 ## Error Handling
@@ -290,10 +289,10 @@ Read from `.claude/settings.local.json`:
 | Setting | Default | Fallback | Description |
 |---------|---------|----------|-------------|
 | `enabled` | `true` | `codexReview.enabled` | Set to `false` to disable consultation |
-| `researchModel` | `"gpt-5.2"` | `codexReview.researchModel` | Model for consultation tasks |
+| `researchModel` | `"gpt-5.2"` | `codexReview.codeModel` | Model for consultation tasks |
 | `consultTimeoutMinutes` | `20` | — | Max time for consultation invocations |
 
-Existing `codexReview.researchModel` config continues to work via fallback.
+Existing `codexReview.codeModel` config continues to work via fallback.
 
 **For CI/headless environments:** Set `CODEX_API_KEY` environment variable for authentication without interactive login.
 

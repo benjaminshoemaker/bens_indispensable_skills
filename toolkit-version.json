@@ -1,30 +1,30 @@
 {
-  "toolkit_commit": "a084f1a",
-  "last_sync": "2026-02-24T22:26:29Z",
+  "toolkit_commit": "d32cae7",
+  "last_sync": "2026-04-09T03:08:57Z",
   "skills": {
     "codex-review": {
-      "hash": "02ca5242f2fe60fbd72be9c1a94caf7742b158f533fae3f109527caf6807399e",
-      "synced_at": "2026-02-24T22:10:24Z"
+      "hash": "18eee1d64e0b14f367b2af0edc869f029825c12fd6da08c992c9fc3ca5d9c447",
+      "synced_at": "2026-04-09T03:08:57Z"
     },
     "codex-consult": {
-      "hash": "2cf1773639a69a0b2f00bf67d6d59ce92dcff759d8f9a983791591c96a7a88f5",
-      "synced_at": "2026-02-24T22:10:24Z"
+      "hash": "a54cd8d392915909f7c5d5ad428da8215f2a64be9121fa23edb2f5c9515c34fa",
+      "synced_at": "2026-04-09T03:08:57Z"
     },
     "innovate": {
-      "hash": "9a6efca74792a7bd6ff31ee45b300d3c3d5e241cb482932d05bfc5c32835b8e4",
-      "synced_at": "2026-02-24T22:10:24Z"
+      "hash": "8094542d7d3036452c7692814a92c4df28de3d321506aafc268cea4277fea0b3",
+      "synced_at": "2026-04-09T03:08:57Z"
     },
     "audit-skills": {
-      "hash": "ffde7ad2d270c54c34deeb054b655fdf93dc64c7beb0b042cd943d60c2b214be",
-      "synced_at": "2026-02-24T22:10:24Z"
+      "hash": "e38d950047e0a156c8e74fc21c520d830de66b424901d871da7080cbcb45f8de",
+      "synced_at": "2026-04-09T03:08:57Z"
     },
     "list-todos": {
       "hash": "8f5a87796cb5f76378b3b9e9566b5367c09c74f3a964edd2bd55033624773462",
       "synced_at": "2026-02-24T22:10:24Z"
     },
     "add-todo": {
-      "hash": "760f86ed7033067138ab50cd12beac3c2448ab04154029bcedd3d9379eae48b9",
-      "synced_at": "2026-02-24T22:10:24Z"
+      "hash": "37308d1e962077c87abdd1a6a4ffa437d8c8cccc7d6532a35331e5102ea34563",
+      "synced_at": "2026-04-09T03:08:57Z"
     },
     "run-todos": {
       "hash": "d8a040bbaf71fdc00bfa69017fa9c2cb7bba19e206ad7d34d581687292b5e691",
