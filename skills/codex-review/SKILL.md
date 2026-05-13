@@ -1,6 +1,6 @@
 ---
 name: codex-review
-description: Have OpenAI Codex review the current branch with documentation research. Use for second-opinion code reviews or when you want cross-AI verification.
+description: Use when requesting an OpenAI Codex review of the current branch with documentation research and cross-AI verification.
 argument-hint: "[focus] [--upstream FILE] [--research TOPICS] [--base BRANCH] [--model MODEL]"
 allowed-tools: Bash, Read, Glob, Grep
 ---

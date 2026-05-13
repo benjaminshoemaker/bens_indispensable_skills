@@ -1,6 +1,6 @@
 ---
 name: codex-consult
-description: Get a second opinion from OpenAI Codex on documents, specs, or plans. Use for cross-AI consultation on any content, not just code diffs.
+description: Use when seeking a second opinion from OpenAI Codex on documents, specs, plans, or other non-code-diff content.
 argument-hint: "[FILE] [question/focus] [--upstream FILE] [--research TOPICS] [--model MODEL]"
 allowed-tools: Bash, Read, Glob, Grep
 ---

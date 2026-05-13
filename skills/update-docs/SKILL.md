@@ -52,6 +52,19 @@ fi
 rm -f .claude/doc-update-pending.json
 ```
 
+## Result Contract
+
+When invoked by another skill or hook, finish with:
+
+```
+UPDATE_DOCS_RESULT
+==================
+Status: UPDATED | NO_CHANGES | PARTIAL | FAILED
+Files changed: {count}
+Commit: {hash, or none}
+Issue: {only when PARTIAL or FAILED}
+```
+
 ---
 
 ## Workflow

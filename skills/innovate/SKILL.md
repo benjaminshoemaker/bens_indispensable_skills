@@ -24,7 +24,7 @@ Understand:
 - What the project does and who it's for
 - Current architecture and tech stack
 - Existing features and capabilities
-- Known gaps, TODOs, and pain points
+- Known gaps, tracked work, and pain points
 
 ### 2. Read Any Specs or Plans
 
@@ -158,6 +158,14 @@ Defensibility: ██████████ HIGH — {one-line justification}
 | Project is a library/SDK (not an app) | Focus on DX innovations, API design, or ecosystem integrations |
 | All ideas feel incremental | Be honest: "This project is well-optimized. Here's the best marginal gain I see:" and lower expectations |
 | The argument is optional | If invoked with an argument (e.g., `/innovate payments`), constrain the search to that domain |
+
+## Error Handling
+
+| Situation | Action |
+|-----------|--------|
+| No product context is available | Stop and ask for the target project path or product docs |
+| Existing plans are missing or contradictory | Report the conflict and ask which source should drive recommendations |
+| No high-confidence idea emerges | Say no recommendation is strong enough yet and list the missing context |
 
 ## Review Your Output
 
