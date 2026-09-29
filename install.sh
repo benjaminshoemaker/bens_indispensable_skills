@@ -11,8 +11,8 @@ Usage:
 Options:
   --dest <path>       Destination skills directory.
                       Default: ~/.claude/skills
-  --method <method>   Install method: symlink or copy.
-                      Default: symlink
+  --method <method>   Install method: copy or symlink.
+                      Default: copy
   --force             Replace existing skill directories or links.
   --dry-run           Print planned actions without writing.
   --skill <name>      Install one skill. Repeat to select multiple skills.
@@ -25,7 +25,7 @@ Examples:
   ./install.sh --dest ~/.agents/skills
   ./install.sh --method copy --dest ~/.codex/skills
   ./install.sh --skill project-research --skill design-directions
-  ./install.sh --force
+  ./install.sh --force --skill project-research
 
 Choose at least one --skill or use --all explicitly.
 USAGE
@@ -34,7 +34,7 @@ USAGE
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$ROOT_DIR/skills"
 DEST_DIR="$HOME/.claude/skills"
-METHOD="symlink"
+METHOD="copy"
 FORCE="0"
 DRY_RUN="0"
 LIST_ONLY="0"
