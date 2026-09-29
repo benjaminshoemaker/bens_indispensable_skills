@@ -1,265 +1,180 @@
 ---
 name: data-flow-audit
-description: Detect split data source anti-patterns and scattered business rule duplication where the same logic is reimplemented across multiple files and languages. Catches semantic duplication that syntactic tools like jscpd miss. Use at phase checkpoints or when investigating data consistency issues.
+description: Audit how data is computed, stored, and served to catch numbers that are wrong today or structured to drift — duplicate computations, stale derived values, split data sources, cross-layer formula divergence. Verifies suspected divergence empirically, not just structurally. Use before a risky merge, when two views disagree on a number, or when investigating data consistency issues.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 ---
 
-# Data Flow Audit Skill
+# Data Flow Audit
 
-Detect cases where the same business concept is served through multiple API endpoints with independently maintained logic — the "split data source" anti-pattern — and where the same business rule (filter predicates, conditions, thresholds) is scattered across multiple files and languages.
+Catch data being computed incorrectly. The failure mode this targets: the same
+business number is computed or stored in more than one place, the
+implementations drift, and different parts of the app start showing different
+values. This happens on both the **read path** (two endpoints/components derive
+the same metric independently) and the **write path** (a derived or denormalized
+value has multiple writers, or a writer that some update paths skip).
 
-## Why This Matters
+The audit produces two tiers of evidence, and severity follows evidence:
 
-When the same data reaches the UI through two different code paths, subtle inconsistencies emerge:
-- Different filtering, defaults, or error handling per endpoint
-- Duplicated helper functions that drift independently
-- Hardcoded constants (rates, thresholds) updated in one place but not the other
-- Frontend components showing conflicting values for the same metric
+1. **Confirmed divergence** — the same metric was computed through two paths against the same data and the values disagree *today*. This is the headline finding; everything else supports it.
+2. **Divergence-prone structure** — duplicate computation that happens to agree now but has no shared definition keeping it that way.
 
-When the same business rule is reimplemented across SQL, API routes, shared libs, and Trigger.dev jobs:
-- Adding a new filter condition requires updating N locations manually
-- Some locations get missed, causing silent data inconsistencies
-- No tool catches it because the code is *reimplemented* in each language, not *copy-pasted*
+A static scan alone only produces tier 2. Step 4 (empirical reconciliation) is what turns "these could disagree" into "these do disagree" — do not skip it for the top candidates.
 
-## Workflow Overview
+## Principles
 
-Copy this checklist and track progress:
+- **Discover, don't assume.** Every shell command in this skill and in
+  [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) is a worked example from
+  *some* stack, not the procedure. Step 1 discovers this project's actual
+  storage, query idioms, and layout; derive the equivalent searches from that.
+  If a pattern does not exist in this project, translate the technique rather
+  than running the example verbatim and reporting "no findings."
+- **The metric inventory is the core artifact.** Findings are statements about metrics ("carry cost is computed in 3 places, 2 agree"), not about files. Build the inventory first; everything else annotates it.
+- **Evidence outranks volume.** One confirmed wrong number matters more than ten consistent duplications. Never let structural findings crowd confirmed ones out of the report.
+- **Incremental by default.** Findings that were reported and accepted go in a baseline file; re-runs validate the baseline and surface only what's new. An audit that re-fails every run on known debt trains people to ignore it.
 
-```
-Data Flow Audit Progress:
-- [ ] Step 0: Validate known documented rules, if present
-- [ ] Step 1: Map all API routes, jobs, and data sources
-- [ ] Step 2: Detect overlapping SQL/table references
-- [ ] Step 2.5: Detect scattered filter predicates (fingerprint matching)
-- [ ] Step 3: Detect duplicated types and helpers across routes
-- [ ] Step 4: Detect cross-layer formula and constant divergence
-- [ ] Step 5: Map frontend consumers to endpoints
-- [ ] Step 6: Detect test mock divergence
-- [ ] Step 7: Score and report findings
-```
+## Modes
 
-## Step 0: Validate Known Documented Rules
+Pick based on how the audit was invoked:
 
-Before running the full audit, check for documented business rules that already have tracked locations.
-This step is optional: if the project has no local memory or rule-documentation file, report `No documented rules found` and continue to Step 1.
+| Mode | When | Scope |
+|------|------|-------|
+| **Quick check** | Pre-merge or review of a bounded change | Validate baseline entries + run detection only on files changed since the last audit + mock-divergence pre-check |
+| **Full audit** | First run on a project, or explicit request | All steps, whole codebase |
+| **Targeted** | "Why do these two numbers differ?" | Steps 1–2 scoped to that metric, then straight to Step 4 reconciliation |
 
-### 0.1 Find rule documentation
-
-Look for these files, if present:
-
-- `MEMORY.md`
-- `LEARNINGS.md`
-- `AGENTS.md` or `CLAUDE.md`
-- domain docs under `docs/`
-
-Search them for patterns that indicate tracked business rules:
-- Phrases like "N live locations", "canonical", "single source of truth", "conditions"
-- Lists of files/modules that implement the same rule
-
-For each documented rule, extract: rule name, conditions/fingerprint, canonical location, documented locations, documented exceptions.
-
-### 0.2 Validate each documented location
-
-For each documented rule:
-1. Read each documented file and verify the rule's conditions are still present
-2. Compare conditions against the canonical definition — flag any differences
-3. Check that the canonical location itself still exists and is current
-
-### 0.3 Discover undocumented locations
-
-Use fingerprint-grep (see Step 2.5 methodology in [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md)) to search for the rule's column names across the full scan scope. Compare discovered set against documented set to find new, removed, or drifted locations.
-
-### 0.4 Report known rule status
+## Workflow
 
 ```
-KNOWN RULE VALIDATION
----------------------
-Rule: {rule name} ({N} conditions)
-Canonical: {canonical location}
-Documented locations: {N}  |  Actual: {N}  |  Status: {ALIGNED | DRIFTED | LOCATIONS_CHANGED}
-  ✓ {file1} — conditions match ({implementation style})
-  ✗ {file3} — MISSING condition: {condition name}
-  + {new_file} — UNDOCUMENTED location ({N}/{total} conditions found)
-  - {removed_file} — REMOVED (no longer contains rule conditions)
-  ⊘ {exception_file} — documented skip ({reason})
+Data Flow Audit:
+- [ ] Step 0: Load and validate the baseline (if present)
+- [ ] Step 1: Discover the data architecture
+- [ ] Step 2: Build the metric inventory
+- [ ] Step 3: Flag structural risks (read path, write path, early warnings)
+- [ ] Step 4: Reconcile top candidates empirically
+- [ ] Step 5: Report; update the baseline
 ```
 
-**Severity:** CRITICAL if canonical drifted, HIGH if documented locations missing conditions, MEDIUM if location count changed but conditions consistent.
+### Step 0: Load and validate the baseline
 
-## Step 1: Map API Routes, Jobs, and Data Sources
+Look for `.claude/data-flow-baseline.md` in the project (format in DETECTION_PATTERNS.md §7). It records two kinds of entries: **known rules** (a business rule with its canonical definition and tracked locations) and **accepted findings** (previously reported issues the team chose to live with).
 
-Build an inventory of every API route, Trigger.dev job, and shared module that touches data.
+For each known rule, verify the canonical location still exists, re-check each
+tracked location for the rule's conditions, and search for untracked locations
+using the fingerprint method in §2.3. Flag DRIFTED if any location no longer
+matches the canonical definition; that is a CRITICAL candidate for Step 4. For
+each accepted finding, confirm it still describes reality and drop entries that
+no longer apply.
 
-### 1.1 Discover API routes and jobs
+No baseline file → note it, continue; offer to create one in Step 5.
 
-```bash
-# Next.js API routes (pages router)
-find src/pages/api -name "*.ts" -not -name "*.test.*"
+### Step 1: Discover the data architecture
 
-# Next.js API routes (app router)
-find src/app/api -name "route.ts"
+Answer these questions by inspecting the project (README, config, dependency manifests, directory layout), and write the answers down — they parameterize every later search:
 
-# Trigger.dev jobs
-find trigger/jobs -name "*.ts" -not -name "*.test.*" 2>/dev/null
+- **Where does data live?** Databases, files (CSV/JSON/SQLite), caches, external APIs, generated static files.
+- **How is it queried?** The actual idiom: an ORM (which one, what do calls look like), raw SQL, a client library, pandas, file reads. Record the concrete syntax of a query, a filter, and a write in this codebase.
+- **Where is it computed?** API routes, background jobs, build/ETL scripts, SQL functions/views, frontend code.
+- **How does it get in?** Ingest scripts, migrations, scrapers, manual imports.
+- **How does it reach the user?** Server endpoints, static generation, direct client queries.
 
-# Shared lib modules with data fetching
-grep -rl "\.from(\|\.rpc(" src/lib/ --include="*.ts" | grep -v test
+If the project genuinely has no stored or served data, report NOT APPLICABLE
+with one sentence of justification and stop. A static site generated from data
+files, or a script pipeline, *is* in scope: its lifecycle is ingest → transform
+→ generate rather than request → query → respond, but the failure modes are the
+same.
+
+### Step 2: Build the metric inventory
+
+Enumerate the business numbers this app stores or displays — metrics, totals, rates, scores, counts, statuses derived from data. Sources: the display layer (what's on screen), the schema (stored derived columns), and the computation sites found in Step 1.
+
+For each metric, record every site that computes or persists it:
+
+```
+| Metric | Definition (in words) | Sites (layer — file:line) | Stored? (where) | Notes |
 ```
 
-### 1.2 For each route/job, extract data sources
+A metric with one computation site and no stored copies is done — skip it in Step 3. The audit's subjects are metrics with 2+ sites, or 1 site plus a stored/denormalized copy.
 
-Record: SQL tables queried (`.from()`), RPC functions called (`.rpc()`), shared service imports, response shape.
+Cap the inventory sensibly: in full-audit mode aim for complete coverage of *displayed* metrics; in quick-check mode only inventory metrics touched by the changed files.
 
-### 1.3 Identify route groups
+### Step 3: Flag structural risks
 
-Group routes serving the same business domain. Heuristics: same URL prefix, same tables/RPCs, >50% response field overlap.
+Work through the pattern catalog in [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md), translating each technique to the idioms recorded in Step 1:
 
-### 1.4 Identify implicit BFF pairs
+- **Read path** (§2): split data sources, aggregation cascades, scattered filter predicates (normalized fingerprint matching), cross-layer formula and constant duplication, shared-library bypass, duplicated types/helpers.
+- **Write path** (§3): derived-value writer audits (does every path that changes the inputs also update the derived value?), snapshot/rollup freshness, double writes, unit/representation drift at storage boundaries.
+- **Early warnings** (§4–5): frontend consumer conflicts, test-mock divergence. Mock divergence is cheap — in quick-check mode run it *first*; consistent mocks lower the urgency of everything else.
 
-Check if list/detail endpoints, dashboard/overview endpoints, or Trigger.dev jobs compute overlapping data independently. BFF pairs are prime candidates for split data sources.
+Attach each finding to a metric in the inventory. A structural finding with no nameable metric behind it ("these two files look similar") is probably noise — either identify what number is at risk or drop it.
 
-## Step 2: Detect Overlapping SQL/Table References
+### Step 4: Reconcile empirically
 
-### 2.1 Shared table access
+For each CRITICAL/HIGH candidate, attempt to confirm or clear it (methods in DETECTION_PATTERNS.md §6): compute the metric through each implementation against the same real data and compare — run both paths where possible, hand-trace one concrete record where not. Record the actual values.
 
-```bash
-grep -rn "\.from(" src/pages/api/ src/lib/ trigger/jobs/ --include="*.ts" | grep -v test
-```
+- Values disagree → **CRITICAL (confirmed)**, report the concrete example.
+- Values agree → downgrade to consistent-duplication (MEDIUM/HIGH per the table below), note "reconciled OK on {example}".
+- Reconciliation infeasible (no data access, can't execute) → keep the structural severity and state explicitly that it is unconfirmed and why.
 
-Flag when two different route files query the same table with different filters, columns, or joins.
+Reconcile at minimum the top 3 candidates; in targeted mode, reconciliation of the metric in question is the whole point.
 
-### 2.2 Shared RPC calls
+### Step 5: Report and update the baseline
 
-```bash
-grep -rn "\.rpc(" src/pages/api/ src/lib/ trigger/jobs/ --include="*.ts" | grep -v test
-```
-
-Flag when two routes call the same RPC, or two RPCs compute overlapping metrics.
-
-### 2.3 SQL function overlap
-
-Read SQL definitions in `supabase/migrations/` for any RPCs found. Flag when two SQL functions compute the same metric independently (HIGH) vs. one delegating to another (MEDIUM).
-
-### 2.4 Detect aggregation cascades
-
-An aggregation cascade occurs when an overview endpoint computes `SUM(metric)` using its own formula while per-item endpoints compute that metric individually with a different formula. If the per-item formula changes, the aggregate won't match the sum of its parts.
-
-**Severity: CRITICAL** if aggregate and per-item formulas produce inconsistent results.
-**Severity: HIGH** if formulas are consistent but independently maintained.
-
-## Step 2.5: Detect Scattered Filter Predicates
-
-See [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) for the full fingerprint matching methodology.
-
-Read DETECTION_PATTERNS.md for the full detection procedure. The summary below is for quick reference only — always defer to the full document.
-
-**Summary**: Extract filter predicates from all files in scope, build column-name fingerprints per file, cluster files sharing 3+ field names, validate candidates (eliminate type defs, SELECT lists, comments), and assess severity based on location count and language spread.
-
-## Step 3: Detect Duplicated Types and Helpers
-
-See [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) for detailed detection commands.
-
-**Summary**: Find type definitions with >60% field overlap across route files (HIGH). Find utility functions duplicated across routes (HIGH).
-Check for routes that bypass shared `src/lib/` modules by querying tables directly (HIGH — "library drift").
-Check for SQL functions that inline conditions already encapsulated by shared SQL helpers.
-
-## Step 4: Detect Cross-Layer Formula and Constant Divergence
-
-See [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) for detailed detection commands.
-
-**Summary**: Find repeated magic numbers/strings across SQL and TS layers. Verify SQL ↔ JS formula consistency (CRITICAL if different values, HIGH if independently maintained). Detect cross-layer formula duplication: SQL + API route, SQL + frontend, API route + frontend, SQL + Trigger.dev job.
-
-## Step 5: Map Frontend Consumers
-
-See [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) for detailed commands.
-
-**Summary**: Find all `fetch()` and `useSWR`/`useQuery` calls in components. Build consumer map (route → components). Flag same-page different-endpoints (CRITICAL), list-vs-detail divergence (HIGH), and missing callback patterns.
-
-## Step 6: Detect Test Mock Divergence
-
-See [DETECTION_PATTERNS.md](DETECTION_PATTERNS.md) for detailed methodology.
-
-**Summary**: Collect test files for each route group. Compare mock data shapes for type divergence (field names), value representation (number vs string, snake_case vs camelCase), and endpoint divergence. **Severity: MEDIUM** — test mock divergence is a symptom, useful as an early-warning signal.
-
-## Step 7: Score and Report
-
-### Severity Reference
+**Severity:**
 
 | Severity | Meaning |
 |----------|---------|
-| CRITICAL | Same metric, different values possible in UI; formula mismatch; 6+ scattered locations across 2+ languages |
-| HIGH | Independent implementations that will drift; library bypass; 3-5 scattered locations |
-| MEDIUM | Structural risk, currently consistent; test mock divergence; 2-3 same-language locations |
-| LOW | Minor duplication, low divergence risk; intentional bypass with justification |
+| CRITICAL | **Confirmed divergence** — same metric, different values, demonstrated on real data. Also: a baseline known-rule whose canonical definition has drifted. |
+| HIGH | Divergence-prone and unprotected: independent implementations with no shared definition, a stored derived value with an incomplete writer set, or a shared helper that most call sites bypass. Not yet confirmed diverged (or unconfirmable). |
+| MEDIUM | Duplicated but currently consistent (verified or low-risk); test-mock divergence; bypass with a plausible reason. |
+| LOW | Documented, intentional duplication. |
 
-### Report Format
-
-```
-DATA FLOW AUDIT REPORT
-======================
-Scanned: {timestamp}
-API routes analyzed: {N}  |  Jobs: {N}  |  SQL functions: {N}  |  Shared libs: {N}
-
-KNOWN RULE VALIDATION — {per-rule status from Step 0}
-SCATTERED FILTER PREDICATES — {fingerprint clusters from Step 2.5}
-
-SPLIT DATA SOURCE FINDINGS
----------------------------
-Finding 1: {Business concept} ({severity})
-  Endpoints: {route1}, {route2}
-  Signals: BFF pair | Aggregation cascade | Cross-layer formula | Library bypass | Mock divergence
-  Risk: {what could diverge}
-  Recommendation: {extract service module | designate authority | use callback pattern}
-
-ROUTE MAP — {full table from Step 1}
-CONSUMER MAP — {full table from Step 5}
-
-SUMMARY
-  Known rules: {N} aligned, {N} drifted
-  Scattered predicates: {N} clusters
-  Split sources: {N} critical, {N} high, {N} medium, {N} low
-  Status: PASSED | PASSED WITH NOTES | FAILED
-```
-
-### Exit Criteria
+**Exit criteria:**
 
 | Result | Condition |
 |--------|-----------|
-| PASSED | No split data source patterns found and all known rules aligned |
-| PASSED WITH NOTES | Only MEDIUM/LOW findings and known rules have minor location changes |
-| FAILED | Any CRITICAL or HIGH finding, or known rule conditions have drifted |
+| FAILED | Any confirmed divergence, or a **new** HIGH finding introduced by the work under review |
+| PASSED WITH NOTES | Pre-existing HIGH findings already in the baseline; new MEDIUM/LOW findings |
+| PASSED | Nothing new beyond the baseline |
 
-## Consolidation Blueprint
+**Report format** — findings first, ordered by severity; inventory and maps as appendix, not headline:
 
-When a split data source or scattered business rule is found:
+```
+DATA FLOW AUDIT — {mode} — {PASSED | PASSED WITH NOTES | FAILED}
+Metrics inventoried: {N}   Multi-site metrics: {N}   Reconciled: {N}   Baseline entries validated: {N}
 
-1. **Extract shared service module** — Create `src/lib/{domain}Service.ts` with shared types, helpers, and computation
-2. **Designate an authority endpoint** — One endpoint becomes source of truth; others delegate
-3. **Use callback/prop pattern for frontend** — Parent fetches once, passes to children
-4. **Centralize constants** — Move hardcoded values to named constants in shared module
-5. **Create or adopt canonical helpers** — For scattered rules, create a SQL/TS helper and migrate all locations
+FINDINGS
+1. {Metric} — {CRITICAL|HIGH|MEDIUM|LOW} {(confirmed: X vs Y on {example}) | (unconfirmed: {reason})}
+   Sites: {layer — file:line, ...}
+   Pattern: {split source | writer gap | cross-layer formula | scattered predicate | ...}
+   Fix: {specific consolidation: extract to X | designate Y authoritative | add writer in Z}
 
-## Error Handling
+BASELINE: {N validated, N drifted, N stale-removed, N new entries proposed}
+
+APPENDIX: metric inventory table
+```
+
+**Fix recommendations** should name the consolidation move: extract a shared
+function/module and migrate call sites; designate one implementation
+authoritative and make others delegate; move the constant to one named
+definition; add the missing writer or replace the stored copy with on-read
+computation; have the parent fetch once and pass down.
+
+Finally, propose baseline updates: new accepted findings (only with user
+confirmation), new known rules for anything consolidated, and removal of stale
+entries. Update the file only when the request authorizes repository changes;
+otherwise report the proposed changes. If none existed, offer to create it.
+
+## Error handling
 
 | Situation | Action |
 |-----------|--------|
-| Project has no API routes | Report "No API route handlers found" and mark audit as NOT APPLICABLE |
-| Route file is too complex to parse (>500 lines) | Flag the file as tech debt, parse what you can, note "Partial analysis" |
-| No frontend consumers found for a route | Note as informational, check `trigger/` or `jobs/` for server-side consumers |
-| Audit finds >5 split data source patterns | Present the top 3 by severity, summarize remaining, suggest `/capture-work` for tracking |
-| MEMORY.md has no documented rules (Step 0) | Skip known rule validation, rely on Step 2.5 fingerprint matching |
-
-## Review Your Output
-
-After generating the audit report, verify:
-- All scanned files are represented in the findings
-- Each finding includes actionable remediation steps
-- No false positives from template or test files
+| Can't determine the stack in Step 1 | Ask the user rather than guessing — everything downstream depends on it |
+| No data access for Step 4 | Report structural findings as unconfirmed; suggest the specific query/command the user could run to confirm |
+| >5 findings | Full detail for the top 3 by severity; one line each for the rest |
+| Inventory would exceed ~30 multi-site metrics | Prioritize displayed + stored metrics; list what was skipped |
 
 ## Limitations
 
-- Cannot detect split data sources across microservices or external APIs
-- SQL formula comparison is heuristic — complex SQL may need manual review
-- Frontend consumer mapping relies on static analysis of `fetch()` calls
-- Fingerprint matching may produce false positives — Step 2.5.4 validation mitigates this
-- Known rule validation depends on MEMORY.md being kept current
+- Cross-service and external-API duplication is out of scope (single-repo analysis).
+- Fingerprint matching normalizes naming (§2.3) but still misses duplication that renames *and* restructures; reconciliation (Step 4) is the backstop.
+- Reconciliation requires runnable access to data; without it the audit is structural-only and says so.

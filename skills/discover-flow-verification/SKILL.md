@@ -1,6 +1,8 @@
 ---
 name: discover-flow-verification
 description: Use when determining how an AI coding agent can autonomously run and verify a specific user flow end to end before implementation.
+argument-hint: "[flow description]"
+allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion
 ---
 
 # Discover Flow Verification
@@ -20,6 +22,17 @@ Stay in discovery mode unless the user explicitly asks to implement the harness.
 - Treat harness patterns as options, not requirements. Do not assume browser, screenshots, services, temp apps, seeded DBs, MCP, OAuth, or external sandboxes are needed until the flow demands them.
 
 ## Discovery Steps
+
+```text
+Flow Verification Discovery:
+- [ ] Name the exact flow claim
+- [ ] Identify the real channel under test
+- [ ] Map what the agent cannot currently prove
+- [ ] Choose controllable state and dependencies
+- [ ] Define observable success and important failures
+- [ ] Define teardown and repeatability
+- [ ] Produce the bounded harness plan or report the blocker
+```
 
 ### 1. Name The Flow
 
@@ -131,6 +144,11 @@ I can run <exact command or steps>, observe <evidence>, and decide pass/fail for
 ```
 
 If the plan does not reach that bar, continue discovery instead of pretending the harness is defined.
+
+If repository context or a required external dependency cannot be inspected,
+identify exactly what is unavailable and return `BLOCKED` with the smallest
+access or decision needed. Do not substitute an adjacent flow or claim that the
+harness is ready.
 
 ## Result Contract
 

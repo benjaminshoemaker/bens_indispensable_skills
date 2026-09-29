@@ -6,7 +6,18 @@ allowed-tools: Read, Glob, Grep, Bash, WebSearch, WebFetch
 
 # Innovate
 
-Identify the **single highest-impact, feasible addition** to make to the current app or plan. Not a list of 10 safe ideas -- one bold, high-leverage move backed by research and cross-referenced evidence.
+Identify the **single highest-impact, feasible addition** to make to the current app or plan. Not a list of 10 safe ideas -- one bold, high-leverage move backed by deep product understanding. Reason from the product's own context first; external research is supplementary, not primary.
+
+Copy this checklist and track progress:
+
+```text
+Innovation progress:
+- [ ] Understand the project and user-facing product
+- [ ] Read relevant plans and optionally assess the landscape
+- [ ] Generate and score 5-7 candidates internally
+- [ ] Select one winner and identify 2-3 runners-up
+- [ ] Review the recommendation against all six criteria
+```
 
 ## Context Gathering
 
@@ -26,7 +37,18 @@ Understand:
 - Existing features and capabilities
 - Known gaps, tracked work, and pain points
 
-### 2. Read Any Specs or Plans
+### 2. Deeply Explore the Product Surface
+
+Go beyond reading config files. Understand the full user-facing product:
+
+- Walk the app's routes/screens to understand every user flow
+- Read the data model (migrations, schemas) to see what data exists and how it connects
+- Check feature directories, planning docs, deferred/next-steps files for the full picture
+- Understand what the product *does today* from a user's perspective, not just what files exist
+
+This deep exploration is what separates a good recommendation from a generic one. You cannot propose the right addition without understanding the product as a user would experience it.
+
+### 3. Read Any Specs or Plans
 
 ```
 Read: PRODUCT_SPEC.md, TECHNICAL_SPEC.md, EXECUTION_PLAN.md, FEATURE_SPEC.md, VISION.md
@@ -34,16 +56,14 @@ Read: PRODUCT_SPEC.md, TECHNICAL_SPEC.md, EXECUTION_PLAN.md, FEATURE_SPEC.md, VI
 
 Understand where the project is headed and what's already planned.
 
-### 3. Assess the Landscape
+### 4. Optionally Assess the Landscape
 
-Use WebSearch to research:
-- What competitors or similar projects are doing
-- Emerging technologies relevant to this domain
-- User expectations in this space (current year)
-
-### 4. Verify Research Findings
-
-Cross-reference every key claim from Step 3 against at least 2 independent sources before using it to support a recommendation. Discard any finding that cannot be corroborated. Note which sources confirmed each claim in your internal evaluation (not in the final output).
+If the product domain is unfamiliar or you want to validate an emerging idea,
+use WebSearch to research competitors, emerging technologies, or user
+expectations. This step is supplementary — the strongest recommendations come
+from reasoning about THIS product's specific context, not from surveying what
+competitors do. Do not let external research override a conviction formed from
+deep product understanding.
 
 ---
 
@@ -54,18 +74,19 @@ The proposal must score HIGH on ALL of these:
 | Criterion | Question |
 |-----------|----------|
 | **Leverage** | Does a small implementation unlock disproportionate value? |
-| **Surprise** | Would this make someone say "I didn't know that was possible"? |
-| **Feasibility** | Can this be built in days, not months? |
+| **Surprise** | Would this make a user of THIS product say "I didn't know it could do that"? (Contextual novelty, not absolute novelty — a well-known technique applied in a new context counts.) |
+| **Feasibility** | Can this be built in weeks, not quarters? |
 | **Fit** | Does it align with the project's direction and users? |
 | **Defensibility** | Is this hard to copy or does it create a moat? |
+| **Compounding** | Does it create a flywheel — does usage make the product more valuable, which drives more usage? |
 
 ### Anti-Patterns (Do NOT Propose)
 
-- Generic AI features ("add AI chat", "use LLMs for X")
-- Incremental improvements that are obvious next steps
-- Features that require massive infrastructure changes
+- Shallow AI bolt-ons that don't connect to the product's core data or value proposition (but DO consider deepening AI interaction in products whose core value IS AI — "add AI chat" is lazy for a todo app but may be exactly right for an AI-native product)
+- Tiny incremental improvements with no compounding effect
+- Features that require new infrastructure with no reuse of existing systems
 - Ideas that sound cool but don't serve the actual users
-- Anything already on the roadmap or in the execution plan
+- Features that duplicate planned work without meaningfully extending it (but DO consider ideas that deepen or combine planned directions in ways the individual plans don't anticipate)
 
 ---
 
@@ -82,11 +103,15 @@ Look for:
 
 ### Step 2: Generate Candidates (Internal)
 
-Brainstorm 5-7 candidates internally. Do NOT output these. Evaluate each against the criteria table silently.
+Brainstorm 5-7 candidates internally. Evaluate each against the criteria table. When presenting the winner, briefly name 2-3 runners-up and why they lost — this lets the user redirect if your judgment call was wrong.
 
 ### Step 3: Select the Winner
 
-Pick the single strongest candidate. If no candidate scores HIGH on all five criteria, say so honestly rather than forcing a weak idea.
+Pick the single strongest candidate. If no candidate scores HIGH on all six
+criteria, say so honestly rather than forcing a weak idea. Prefer the idea with
+the strongest compounding/flywheel effect when multiple candidates score
+similarly on other criteria — accretive value compounds in ways that one-time
+features don't.
 
 ---
 
@@ -145,6 +170,12 @@ Surprise:      ██████████ HIGH — {one-line justification}
 Feasibility:   ██████████ HIGH — {one-line justification}
 Fit:           ██████████ HIGH — {one-line justification}
 Defensibility: ██████████ HIGH — {one-line justification}
+Compounding:   ██████████ HIGH — {one-line justification}
+
+RUNNERS-UP
+──────────
+• {Runner-up 1} — why it lost: {one sentence}
+• {Runner-up 2} — why it lost: {one sentence}
 ```
 
 ---
@@ -171,7 +202,7 @@ Defensibility: ██████████ HIGH — {one-line justification}
 
 Before presenting:
 - [ ] Proposal is ONE idea, not a list
-- [ ] Scores HIGH on all five criteria (or honestly notes where it doesn't)
+- [ ] Scores HIGH on all six criteria (or honestly notes where it doesn't)
 - [ ] Implementation sketch is specific enough to act on
 - [ ] Not something already planned or obvious
 - [ ] Aligned with project direction

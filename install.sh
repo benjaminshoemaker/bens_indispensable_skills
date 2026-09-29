@@ -15,13 +15,19 @@ Options:
                       Default: symlink
   --force             Replace existing skill directories or links.
   --dry-run           Print planned actions without writing.
+  --skill <name>      Install one skill. Repeat to select multiple skills.
+  --all               Install every available skill.
+  --list              List available skills and exit.
   -h, --help          Show this help.
 
 Examples:
-  ./install.sh
+  ./install.sh --all
   ./install.sh --dest ~/.agents/skills
   ./install.sh --method copy --dest ~/.codex/skills
+  ./install.sh --skill project-research --skill design-directions
   ./install.sh --force
+
+Choose at least one --skill or use --all explicitly.
 USAGE
 }
 
@@ -31,6 +37,9 @@ DEST_DIR="$HOME/.claude/skills"
 METHOD="symlink"
 FORCE="0"
 DRY_RUN="0"
+LIST_ONLY="0"
+ALL_SKILLS="0"
+SELECTED_SKILLS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -58,6 +67,22 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN="1"
       shift
       ;;
+    --skill)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --skill" >&2
+        exit 2
+      fi
+      SELECTED_SKILLS+=("$2")
+      shift 2
+      ;;
+    --all)
+      ALL_SKILLS="1"
+      shift
+      ;;
+    --list)
+      LIST_ONLY="1"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -80,6 +105,60 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
   exit 1
 fi
 
+list_skills() {
+  local src
+  for src in "$SOURCE_DIR"/*; do
+    [[ -d "$src" && -f "$src/SKILL.md" ]] || continue
+    basename "$src"
+  done
+}
+
+if [[ "$LIST_ONLY" == "1" ]]; then
+  list_skills
+  exit 0
+fi
+
+if [[ "$ALL_SKILLS" == "1" && ${#SELECTED_SKILLS[@]} -gt 0 ]]; then
+  echo "--all cannot be combined with --skill" >&2
+  exit 2
+fi
+
+if [[ "$ALL_SKILLS" != "1" && ${#SELECTED_SKILLS[@]} -eq 0 ]]; then
+  echo "Select at least one skill or use --all." >&2
+  echo "Run ./install.sh --list to see available skills." >&2
+  exit 2
+fi
+
+SOURCES=()
+if [[ "$ALL_SKILLS" == "1" ]]; then
+  for src in "$SOURCE_DIR"/*; do
+    [[ -d "$src" && -f "$src/SKILL.md" ]] || continue
+    SOURCES+=("$src")
+  done
+else
+  for name in "${SELECTED_SKILLS[@]}"; do
+    src="$SOURCE_DIR/$name"
+    if [[ "$name" == */* || ! -d "$src" || ! -f "$src/SKILL.md" ]]; then
+      echo "Unknown skill: $name" >&2
+      echo "Run ./install.sh --list to see available skills." >&2
+      exit 2
+    fi
+
+    already_selected="0"
+    if [[ ${#SOURCES[@]} -gt 0 ]]; then
+      for existing in "${SOURCES[@]}"; do
+        if [[ "$existing" == "$src" ]]; then
+          already_selected="1"
+          break
+        fi
+      done
+    fi
+    if [[ "$already_selected" == "0" ]]; then
+      SOURCES+=("$src")
+    fi
+  done
+fi
+
 run() {
   if [[ "$DRY_RUN" == "1" ]]; then
     printf '  '
@@ -94,6 +173,11 @@ echo "Installing skills"
 echo "  Source: $SOURCE_DIR"
 echo "  Destination: $DEST_DIR"
 echo "  Method: $METHOD"
+if [[ "$ALL_SKILLS" == "1" ]]; then
+  echo "  Selection: all skills"
+else
+  echo "  Selection: ${SELECTED_SKILLS[*]}"
+fi
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "  Mode: dry run"
 fi
@@ -106,9 +190,7 @@ updated=0
 skipped=0
 conflicts=0
 
-for src in "$SOURCE_DIR"/*; do
-  [[ -d "$src" ]] || continue
-
+for src in "${SOURCES[@]}"; do
   name="$(basename "$src")"
   dest="$DEST_DIR/$name"
 

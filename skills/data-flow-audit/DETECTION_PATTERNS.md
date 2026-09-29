@@ -1,335 +1,180 @@
-# Detection Patterns
+# Detection & Reconciliation Methods
 
-Reference document for detailed detection methodology used in Steps 2.5–6 of the data-flow-audit skill.
+Reference for Steps 3–5 of the data-flow-audit skill.
 
-## Step 2.5: Detect Scattered Filter Predicates (Fingerprint Matching)
+**Every shell command below is a worked example from a particular stack.** The
+examples use a Supabase/Next.js app and a Python/static-site pipeline. The
+technique is the deliverable; the command is an illustration. Translate each
+one to the query idioms, directories, and naming recorded in Step 1 before
+running anything. If a technique needs clustering, co-occurrence counting, or
+cross-file comparison, write a small throwaway script in the scratchpad instead
+of forcing it through shell one-liners.
 
-This step detects when the same business rule — defined by a cluster of filter conditions on the same column names — is implemented independently in multiple files and/or languages. This catches the "Active Spec Definition" class of problems that endpoint-centric analysis misses.
+## §1 Building the metric inventory
 
-### 2.5.1 Extract filter predicates from scan scope
+Work backwards from outputs, forwards from schema:
 
-Scan all files in scope for filter operations and extract the column/field names used:
+1. **From the display layer**: list every number/status the UI or generated output shows. Each is a metric.
+2. **From storage**: list stored columns/fields that are *derived* (totals, counts, scores, flags computed from other data) rather than raw facts. Each stored derived value is a metric with at least one persistence site.
+3. **From computation sites**: scan the sites found in Step 1 for arithmetic on business fields, aggregate queries (`SUM`, `COUNT`, `GROUP BY`, `.reduce(`, `groupby`), and constants used in formulas. Map each back to a metric.
 
-**SQL filters:**
-```bash
-# Find WHERE clauses and their column references in SQL
-grep -rn "WHERE\|AND\|OR" supabase/migrations/ --include="*.sql" | grep -v "^--"
-```
+For each metric, find all sites with a normalized-identifier search (see §2.3 for normalization): search for the metric's key field names in *all* languages/layers at once, then classify each hit as compute / persist / display / mention-only.
 
-**Supabase client filters:**
-```bash
-# Find Supabase filter chains across all TS files
-grep -rn "\.eq(\|\.is(\|\.not(\|\.or(\|\.filter(\|\.neq(\|\.isNot(" \
-  src/pages/api/ src/lib/ trigger/jobs/ --include="*.ts" | grep -v test
-```
+## §2 Read-path patterns
 
-**JavaScript/TypeScript filters:**
-```bash
-# Find JS filter predicates that reference field/column names
-grep -rn "\.filter(" src/lib/ src/components/ --include="*.ts" --include="*.tsx" | grep -v test | grep -v node_modules
-```
+### §2.1 Split data sources
 
-### 2.5.2 Build fingerprints per file
+The same business concept served through 2+ independently maintained code paths.
 
-For each file that contains filter operations, record the set of column/field names used in filter contexts. A "fingerprint" is the set of field names a file filters on.
+Detection: group data-serving code (endpoints, jobs, generation scripts) by the tables/files/entities they read. Within a group, flag:
 
-**Example fingerprints:**
-```
-active-specs.ts       → {spec_model, sold_date, not_for_sale, days_in_inv}
-properties.ts         → {spec_model, sold_date, not_for_sale, days_in_inv}
-snapshot-comps.ts     → {spec_model, sold_date, not_for_sale, days_in_inv}
-compute_portfolio_performance() → {spec_model, sold_date, not_for_sale, days_in_inv}
-```
-
-### 2.5.3 Cluster matching
-
-Find fingerprints that share 3+ field names across 3+ files. Each cluster is a candidate scattered business rule.
+- **BFF pairs** — list/detail, dashboard/overview, or job/endpoint pairs that compute overlapping fields independently instead of sharing a function.
+- **Aggregation cascades** — an overview computes `SUM(metric)` with its own
+  formula while per-item paths compute the metric individually. If the per-item
+  formula changes, the total stops matching the sum of its parts. Reconcile by
+  comparing the aggregate against the summed per-item values directly (§6).
 
 ```bash
-# For a candidate column cluster (e.g., active spec columns), find co-occurring files
-grep -rl "spec_model" src/ trigger/ supabase/ --include="*.ts" --include="*.sql" | \
-  while read f; do
-    count=0
-    grep -q "sold_date" "$f" && count=$((count+1))
-    grep -q "not_for_sale" "$f" && count=$((count+1))
-    grep -q "days_in_inv" "$f" && count=$((count+1))
-    grep -q "spec_model" "$f" && count=$((count+1))
-    [ $count -ge 3 ] && echo "$f ($count/4 fields)"
-  done
+# Example (Supabase/TS): who reads which table
+grep -rn "\.from(\|\.rpc(" src/ trigger/ --include="*.ts" | grep -v test
+# Example (Python pipeline): who reads which data file
+grep -rn "read_csv\|json.load\|open(" scripts/ --include="*.py" | grep -iv test
 ```
 
-**Discovery approach for unknown clusters:**
-1. Collect all column names used in filter contexts across all files
-2. Build a co-occurrence matrix: for each pair of columns, count how many files filter on both
-3. Identify clusters of 3+ columns that co-occur in 3+ files — these are candidate business rules
-4. Exclude common infrastructure patterns (e.g., `created_at`, `updated_at`, `id` filtering)
+### §2.2 Cross-layer formula and constant duplication
 
-### 2.5.4 Validate candidates
+The same formula or business constant maintained independently in 2+ layers (SQL + app code, backend + frontend, ETL script + display template).
 
-For each candidate cluster, read each file to confirm it's implementing a filter (not just referencing the field in a SELECT, type definition, or comment). Eliminate false positives:
-- **Type definitions** — referencing field names in interfaces/types (not a filter)
-- **SELECT lists** — querying the column without filtering on it (not a scattered rule)
-- **Comments/docs** — mentioning the column name in documentation
-- **Test mocks** — test data that includes the field (symptom, not cause — captured in Step 6)
+Detection — discover the constants, don't assume them:
 
-### 2.5.5 Assess severity
+1. In each computation site, collect numeric literals and thresholds that appear in business logic (rates, day counts, cutoffs, divisors like `/ 365`). Ignore obvious non-business values (0, 1, array indices, HTTP codes).
+2. For each collected constant, search every other layer for the same value *and* for near-misses (a different value attached to the same concept name — that's the divergence case).
+3. For formulas: identify the computation's inputs and operation in one layer, then search other layers for the same inputs combined differently.
 
-For each validated cluster:
+Severity: different values for the same concept across layers → CRITICAL candidate, go to §6. Same value hardcoded in multiple places with no shared named definition → HIGH.
 
-| Condition | Severity |
-|-----------|----------|
-| 6+ locations across 2+ languages (SQL + TS), no canonical helper | CRITICAL |
-| 6+ locations, canonical helper exists but >50% of locations bypass it | CRITICAL |
-| 3-5 locations across 2+ languages | HIGH |
-| Canonical helper exists but some consumers bypass it | HIGH |
-| 2-3 locations in same language, or bypass is documented | MEDIUM |
+### §2.3 Scattered filter predicates (fingerprint matching)
 
-### 2.5.6 Report scattered predicates
+The same business rule — a cluster of filter conditions — reimplemented across files/languages. This catches "what counts as an active listing / a valid record / a major event" being defined in N places.
 
-```
-SCATTERED FILTER PREDICATES
-----------------------------
-Cluster: {descriptive name} ({N} conditions)
-  Conditions: {col1} = X, {col2} IS NULL, {col3} IS NOT NULL, ...
-  Canonical helper: {function name} | NONE
-  Locations ({N} total, {M} languages):
-    SQL:
-      - {migration_file}:{function_name} — {N}/{total} conditions ({MATCH | PARTIAL | DRIFTED})
-    TypeScript (Supabase client):
-      - {file}:{line_range} — {N}/{total} conditions ({MATCH | PARTIAL | DRIFTED})
-    TypeScript (JS filter):
-      - {file}:{line_range} — {N}/{total} conditions ({MATCH | PARTIAL | DRIFTED})
-    Trigger.dev:
-      - {file}:{line_range} — {N}/{total} conditions ({MATCH | PARTIAL | DRIFTED})
-  Bypass rate: {bypassing_count}/{total_count} ({percentage}%)
-  Severity: {severity}
-  Risk: Adding or changing a condition requires updating {N} locations across {M} languages
-  Recommendation: {Extract canonical helper | Increase adoption of existing helper | Document intentional divergence}
-```
+1. **Extract**: for each file in scope, collect the field names used in filter contexts (WHERE clauses, `.eq()/.filter()` chains, `df[df[...]]` masks, `if row[...]` guards — whatever Step 1 found as this project's filter idioms).
+2. **Normalize identifiers before comparing**: lowercase and strip `_`, `-`,
+   and quotes, so `sold_date` ≡ `soldDate` ≡ `"SoldDate"`. Cross-layer renames
+   are common at SQL↔code boundaries, and unnormalized matching misses them.
+   Keep a map from normalized → original spellings for the report.
+3. **Cluster**: find sets of 3+ normalized field names co-filtered in 3+ files. Do this with a throwaway script (extract per-file fingerprint sets, intersect pairwise), not by eyeballing grep output. Exclude infrastructure fields (`id`, `created_at`, `updated_at` and this project's equivalents).
+4. **Validate**: read each clustered file and confirm it *filters* on the fields — discard hits that are type definitions, SELECT/projection lists, comments, or test mocks (mocks are captured separately, §5).
+5. **Compare conditions**: within a validated cluster, list each site's actual conditions. Sites with the same fields but different conditions (one checks 3 of 4 conditions, one uses `>` where another uses `>=`) are drifted — CRITICAL candidates for §6.
 
----
+Report per cluster: conditions, canonical helper (if any), each location with MATCH/PARTIAL/DRIFTED, and the fix (extract a canonical helper, or migrate bypassing sites to the one that exists).
 
-## Step 3: Detect Duplicated Types and Helpers
+### §2.4 Shared-library bypass
 
-### 3.1 Type duplication across routes
+A shared module/helper encapsulates a query or rule, but some call sites hit the underlying data directly.
 
-Look for type definitions in API route files that have overlapping field names:
+1. For each shared data module (service files, canonical SQL functions/views, shared query helpers), record what it wraps.
+2. Search for direct access to those same tables/files/fields outside the module.
+3. Flag non-importing sites. Bypass can be intentional (different column subset, different join context) — record the justification and rate MEDIUM; unexplained bypass is HIGH because the shared module will evolve without the bypasser.
 
-```bash
-# Find all type definitions in API routes and jobs
-grep -rn "^type " src/pages/api/ trigger/jobs/ --include="*.ts" | grep -v test
-```
+### §2.5 Duplicated types and helpers
 
-Compare field names across types in different route files. Flag when:
-- Two types in different files share >60% of their field names
-- Both represent the same business entity (e.g., community metrics)
+Cheap corroborating signal: two type/dataclass definitions in different serving
+files sharing most of their fields, or same-named utility helpers
+(`parseNumeric`, `formatRow`, date formatters) defined locally in multiple
+files. This is rarely a headline finding by itself; use it to strengthen a
+split-source finding and name the extraction target.
 
-**Severity: HIGH** — types should live in a shared module, not be redefined per-route.
+## §3 Write-path patterns
 
-### 3.2 Helper function duplication
+The read path asks "who computes this?"; the write path asks "who keeps this stored value correct?"
 
-Look for utility functions defined locally in API route files and jobs:
+### §3.1 Derived-value writer audit
 
-```bash
-# Find function definitions in API routes and jobs
-grep -rn "^function \|^const .* = (" src/pages/api/ trigger/jobs/ --include="*.ts" | grep -v test
-```
+For each *stored derived* value in the metric inventory (denormalized totals, cached counts, status flags, precomputed scores):
 
-Flag when the same function name (or a function with the same signature) appears in multiple route files. Common culprits:
-- `parseNumeric()` / `toNumber()` — numeric parsing
-- `unwrapResult()` / `handleError()` — error unwrapping
-- `transformRow()` / `formatRow()` — row transformation
-- Date/month name formatting helpers
+1. Enumerate its **writers** — every code path that sets or updates it (inserts, updates, triggers, batch jobs, ingest scripts).
+2. Enumerate its **input-mutation paths** — every code path that changes the underlying data it's derived from.
+3. Diff the two sets. An input-mutation path with no corresponding derived-value update is a **writer gap**: the stored value goes stale exactly when that path runs. HIGH, and a prime reconciliation candidate — recompute from inputs and compare to the stored value (§6).
+4. If there are 2+ writers, compare their formulas like §2.2 — multiple writers with different formulas means the stored value depends on which path wrote last (CRITICAL candidate).
 
-**Severity: HIGH** — these should be extracted to `src/lib/` modules.
+### §3.2 Snapshot and rollup freshness
 
-### 3.3 Inline vs. shared computation
+For snapshot tables, rollup/aggregate tables, materialized views, and generated
+data files: who refreshes it, on what trigger, and does anything read it beside
+live-computed values? A page mixing a stale rollup with a live query shows
+inconsistent numbers even when each source is individually "correct." Flag
+rollups with no discoverable refresh owner (HIGH). Reconcile mixed stale/live
+reads by comparing rollup and live values on current data.
 
-Check whether routes import computation from `src/lib/` or reimplement it inline:
+### §3.3 Double writes and multi-store sync
 
-```bash
-# Good: importing from shared modules
-grep -rn "from '.*lib/" src/pages/api/ trigger/jobs/ --include="*.ts" | grep -v test
+The same fact persisted to 2+ places (two tables, DB + cache, DB + generated JSON) by different code paths. Check that a single code path owns both writes; if different paths write each copy, they *will* diverge on partial failure or code drift. Reconcile by diffing the two stores directly.
 
-# Suspicious: functions defined locally in route files
-grep -c "^function " src/pages/api/**/*.ts
-```
+### §3.4 Boundary representation drift
 
-A route file with many locally-defined functions (>3) is a candidate for extraction.
+At each storage/serialization boundary, check the same field for unit changes
+(cents vs dollars, seconds vs ms), timezone/date handling, numeric type, rounding
+at different stages, and null conventions (`null` vs `0` vs omitted). These
+produce small divergences that survive casual inspection. When reconciling in
+§6, compare exact values rather than eyeballing them.
 
-### 3.4 Detect shared library bypass
+## §4 Frontend consumer conflicts
 
-A shared service module may exist (e.g., `src/lib/compService.ts`) but some route files query the same tables directly instead of importing from it. This is "library drift" — the shared module evolves, but the bypassing route doesn't get the updates.
+Map data consumers (fetch/query calls, or template variables in a generated site) to their sources. Flag:
 
-**Detection method for TypeScript:**
-1. For each `src/lib/*Service.ts` or `src/lib/*Helpers.ts` module, record which tables and RPCs it wraps
-2. Scan API route files and Trigger.dev jobs for direct `.from()` or `.rpc()` calls to those same tables/RPCs
-3. Flag any route or job that queries a table or RPC already encapsulated by a shared module without importing from that module
+- **Same page, different sources** — two components on one page showing overlapping data from different endpoints/queries: the highest-risk case, because divergence is visible side by side. CRITICAL candidate; reconcile the two responses directly.
+- **List vs detail divergence** — same metric fetched from different endpoints across navigation (HIGH).
+- **Redundant child fetches** — parent and child independently fetching related data instead of the parent passing it down (MEDIUM; fix is the prop/callback pattern).
 
-```bash
-# Example: Find which tables compService.ts wraps
-grep "\.from(\|\.rpc(" src/lib/compService.ts
+## §5 Test-mock divergence (early-warning pre-check)
 
-# Then find routes/jobs that query those same tables directly
-grep -rn "\.from('staging_qmi_report')" src/pages/api/ trigger/jobs/ --include="*.ts" | grep -v test
-```
+When two test files mock the same business entity with different shapes, the code under test models the same concept differently. Cheap to check — in quick-check mode run this *before* the heavier steps.
 
-**Detection method for SQL:**
-1. Find canonical SQL helper functions (shared definitions that encapsulate business rules)
-2. Find other SQL functions that inline the same conditions instead of calling the helper
+Within each group of related test files, compare mocks of the same entity for
+field-name differences beyond expected casing, type differences (`15000` vs
+`"15000"`), null-convention differences, and wrapper-shape differences (nested
+vs flat, array vs object). Also compare mocked endpoint URLs that return the
+same entity.
 
-```bash
-# Find SQL helper functions (canonical definitions)
-grep -rn "CREATE.*FUNCTION" supabase/migrations/ --include="*.sql" | grep -i "active_spec\|get_community"
+Severity MEDIUM always — it's a symptom pointing at a split, not the split itself. Divergent mocks → prioritize that entity's metrics in Steps 2–4. Consistent mocks → weak evidence of health, not proof.
 
-# Find SQL functions that inline the same conditions instead of calling the helper
-grep -rn "spec_model.*=.*'Spec'" supabase/migrations/ --include="*.sql"
-```
+## §6 Empirical reconciliation
 
-Flag when a SQL function inlines filter conditions that a shared SQL helper already encapsulates. This is the SQL equivalent of TypeScript library bypass.
+The step that converts "could diverge" into "does diverge." For each candidate, get the same metric from each implementation **for the same underlying data** and compare exact values.
 
-**Severity: HIGH** — the route/job/SQL function is reimplementing logic that the shared module already provides.
+Methods, in order of preference:
 
-**Note:** Sometimes the bypass is intentional (e.g., the route needs a different subset of columns, or a SQL function needs different JOIN context). Record these as MEDIUM and note the justification.
+1. **Run both paths.** Execute each implementation against the real data store (run the SQL function and the app-code equivalent; call both endpoints; run the ETL computation and query the stored result). Diff exact values.
+2. **Golden entities.** Pick 2–3 concrete entities (a specific player, order, community). Compute the metric for each entity through every path. Small sample, but divergence found this way is conclusive, and formula differences usually show up on any entity.
+3. **Aggregate vs sum-of-parts.** For aggregation cascades: fetch the overview total and the per-item values, sum the items, compare.
+4. **Hand-trace.** No execution access: take one concrete record's actual values and evaluate each implementation on paper, step by step, including rounding and null handling. Slower and error-prone — say in the report that confirmation was by trace, not execution.
+5. **Stored vs recomputed.** For writer gaps (§3.1): recompute the derived value from current inputs and compare against the stored copy.
 
----
+Rules: compare exact values (representation drift hides in rounding); pin both paths to the same data snapshot if data changes underneath; record the concrete example (entity, both values, both code paths) in the finding — a CRITICAL without a reproducible example is just a HIGH with confidence.
 
-## Step 4: Detect Cross-Layer Formula and Constant Divergence
+If reconciliation is infeasible, keep the structural severity, mark the finding **unconfirmed**, and give the user the exact query/command that would confirm it.
 
-### 4.1 Find repeated magic numbers and strings
+## §7 Baseline file format
 
-Look for business constants that appear in multiple files:
+`.claude/data-flow-baseline.md` in the project root. Two sections:
 
-```bash
-# Rates, thresholds, budget years
-grep -rn "0\.12\|0\.025\|850\|2026\|BUDGET_YEAR\|PACE_BUDGET" src/ --include="*.ts" | grep -v test | grep -v node_modules
+```markdown
+# Data Flow Baseline
+Last audit: {date} ({mode})
 
-# Same constants in SQL
-grep -rn "0\.12\|0\.025\|850\|2026" supabase/migrations/ --include="*.sql"
+## Known rules
+### {rule-name} ({N} conditions)
+Canonical: {file:function}
+Conditions: {field} = X; {field} IS NULL; ...
+Locations: {file} (MATCH); {file} (MATCH); ...
+Exceptions: {file} — {reason}
+
+## Accepted findings
+- {metric} — {pattern} — {severity} — accepted {date}: {one-line justification}
 ```
 
-Flag when the same business constant appears in:
-- Multiple API routes
-- Both SQL and JS/TS layers
-- Both a shared module and an inline usage
-
-### 4.2 Check SQL ↔ JS consistency
-
-For any computation that exists in both SQL functions and JS/TS code, verify the formulas match. Common divergence points:
-- Carry cost rates
-- Aging thresholds (e.g., >60 days)
-- Rounding behavior
-- Null handling
-
-**Severity: CRITICAL** if a business formula appears in SQL and JS with different values.
-**Severity: HIGH** if the same constant is hardcoded in multiple places without a shared definition.
-
-### 4.3 Detect cross-layer formula duplication
-
-Business formulas often need to exist in multiple layers (SQL for server-side aggregation, JS/TS for client-side interactivity). When the same formula is maintained independently in two or more layers, any update must touch all of them — and often doesn't.
-
-**Detection method:**
-1. Identify business computations in SQL migration files (carry cost, scoring, thresholds, rates)
-2. Search for the same computation in `src/lib/` modules, API routes, Trigger.dev jobs, and frontend components
-3. For each formula found in multiple layers, verify numerical consistency
-
-**Common cross-layer splits:**
-- **SQL + API route** — SQL function computes a metric, API route reimplements the same formula in JS for a different context
-- **SQL + frontend** — SQL computes a default, frontend recomputes for "what-if" scenarios using its own constants
-- **API route + frontend** — Server returns raw data, two different frontend components independently derive the same metric from it
-- **SQL + Trigger.dev job** — Job reimplements a computation that a SQL function already provides
-
-```bash
-# Find formulas in SQL
-grep -rn "0\.12\|0\.025\|/ 365\|/ 30\|* 30" supabase/migrations/ --include="*.sql"
-
-# Find the same formulas in TS (including jobs)
-grep -rn "0\.12\|0\.025\|/ 365\|/ 30\|ANNUAL_RATE\|MONTHLY" src/ trigger/ --include="*.ts" | grep -v test | grep -v node_modules
-```
-
-**Severity: CRITICAL** if formulas produce different numerical results across layers.
-**Severity: HIGH** if formulas match today but are independently maintained without a documented link between them.
-
----
-
-## Step 5: Map Frontend Consumers
-
-### 5.1 Find all fetch calls
-
-```bash
-# Find API calls in frontend components
-grep -rn "fetch(" src/components/ --include="*.tsx" --include="*.ts" | grep "/api/"
-grep -rn "useSWR\|useQuery" src/components/ --include="*.tsx" --include="*.ts"
-```
-
-### 5.2 Build consumer map
-
-For each API route, record which frontend components consume it:
-
-```
-Consumer Map:
-| Route | Component(s) | UI Location |
-|-------|-------------- |-------------|
-```
-
-### 5.3 Detect conflicting consumption
-
-Flag when:
-- **Same page, different endpoints** — Two components on the same page fetch overlapping data from different endpoints (highest risk for visible inconsistency)
-- **Same data, different views** — A list view and a detail view fetch the same business metrics from different endpoints, risking values that don't match when a user navigates between them
-- **Missing callback pattern** — A parent and child component independently fetch related data instead of the parent fetching once and passing data down via props/callbacks
-
-**Severity: CRITICAL** if two components on the same page show the same metric from different sources.
-**Severity: HIGH** if list and detail views compute the same metric differently.
-
----
-
-## Step 6: Detect Test Mock Divergence
-
-Test files are an early-warning system for split data sources. When two test files mock the same business data with different shapes, field names, or wrapper structures, it reveals that the code under test models the same concept differently.
-
-### 6.1 Find test files for route groups
-
-For each route group identified in Step 1, collect their test files:
-
-```bash
-# Find test files for community metrics endpoints
-find src/pages/api/communities -name "*.test.*"
-find src/components/communities -name "*.test.*"
-find trigger/jobs -name "*.test.*" 2>/dev/null
-```
-
-### 6.2 Compare mock data shapes
-
-Within each route group's test files, look for:
-
-**Type shape divergence** — The same business entity mocked with different field names or structures:
-```
-# Test A mocks carry cost as a direct field
-{ carryCost: 15000 }
-
-# Test B mocks it through an RPC wrapper
-{ data: [{ carry_cost: "15000" }] }
-```
-
-**Value representation divergence** — The same field represented differently:
-- `number` vs `string` (e.g., `15000` vs `"15000"`)
-- `snake_case` vs `camelCase` (e.g., `carry_cost` vs `carryCost`)
-- Different null representations (`null` vs `0` vs `undefined` vs omitted)
-
-**Mock endpoint divergence** — Test files that mock different URLs but expect the same data:
-```bash
-# Find all mocked fetch URLs in test files
-grep -rn "fetch.*mock\|mockResolvedValue\|if.*input.*==.*'/api" src/ --include="*.test.*"
-```
-
-### 6.3 Evaluate divergence
-
-Flag when:
-- Two test files in the same route group mock the same business entity with >2 field-name differences
-- The same metric uses different types (`number` vs `string`) across test mocks
-- Response wrapper shapes differ (array vs single object, nested vs flat)
-
-**Severity: MEDIUM** — Test mock divergence is a *symptom* of the underlying split, not the cause. It's useful as a fast early-warning signal before running the full data flow trace.
-
-**Tip:** This step can be run as a lightweight pre-check. If mock shapes diverge, proceed with the full audit. If they're consistent, the risk of active divergence is lower.
+Add accepted findings only with explicit user sign-off. When a consolidation
+fix lands, convert the finding into a known rule pointing at the new canonical
+helper. Remove entries whose code no longer exists. Every audit starts by
+validating this file (Step 0): a drifted known rule is a CRITICAL candidate, and
+stale entries are pruned so the baseline stays trustworthy.
