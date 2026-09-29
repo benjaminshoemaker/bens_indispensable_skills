@@ -99,10 +99,11 @@ Install only the skills you want:
 ./install.sh --skill project-research --skill design-directions
 ```
 
-By default, installation uses symlinks under `~/.claude/skills`. Repeating
-`--skill` selects multiple skills. Installation requires an explicit
-selection; use `./install.sh --all` only when you intentionally want the full
-collection.
+By default, installation copies selected skills under `~/.claude/skills`.
+Copies keep an agent installation independent of the repository checkout and
+avoid broken global links when a checkout moves or is archived. Repeating
+`--skill` selects multiple skills. Installation requires an explicit selection;
+use `./install.sh --all` only when you intentionally want the full collection.
 
 Common destinations:
 
@@ -116,11 +117,14 @@ Install somewhere else:
 ./install.sh --dest ~/.agents/skills --skill project-research
 ```
 
-Install by copying instead of symlinking:
+Use symlinks only for active skill development:
 
 ```bash
-./install.sh --method copy --skill project-research
+./install.sh --method symlink --skill project-research
 ```
+
+See [Installation Strategy](docs/installation-strategy.md) for recommended
+Codex and Claude Code profiles, updates, and cleanup guidance.
 
 Restart your agent after installing so it can reload available skills.
 
@@ -143,6 +147,8 @@ See [Quick Start](docs/quick-start.md) for a short walkthrough of:
   full-collection installation behavior.
 - [Compatibility](docs/compatibility.md) — Per-skill requirements and caveats.
 - [Quick Start](docs/quick-start.md) — A first workflow to try after installing.
+- [Installation Strategy](docs/installation-strategy.md) — Keep one canonical
+  source and small, copied per-agent installations.
 - [Canonical Reconciliation](docs/canonical-reconciliation.md) — How skills
   were retained, promoted, or held during the toolkit transition.
 - [LICENSE](LICENSE) — MIT license.

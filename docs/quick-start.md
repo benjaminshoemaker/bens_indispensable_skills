@@ -9,13 +9,14 @@ From this repo:
 
 ```bash
 ./install.sh --list
-./install.sh --skill project-research --skill design-directions
+./install.sh --dest ~/.codex/skills \
+  --skill project-research --skill design-directions
 ```
 
 For a different agent directory:
 
 ```bash
-./install.sh --dest ~/.agents/skills \
+./install.sh --dest ~/.claude/skills \
   --skill project-research --skill design-directions
 ```
 

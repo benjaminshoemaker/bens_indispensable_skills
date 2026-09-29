@@ -20,10 +20,13 @@ This table summarizes what each skill needs in order to work well.
 
 ## Common Skill Directories
 
-Different agents look for skills in different places. Common local destinations:
+Different agents look for skills in different places. Prefer one destination
+per agent so the same skill is not discovered twice:
 
 - Claude Code: `~/.claude/skills/`
-- Agents-compatible runtimes: `~/.agents/skills/`
 - Codex setups that read directly from Codex home: `~/.codex/skills/`
+- Agents-compatible runtimes without a dedicated home: `~/.agents/skills/`
 
-Use `./install.sh --dest <path>` to pick the target directory explicitly.
+Use `./install.sh --dest <path>` to pick the target directory explicitly. See
+the [Installation Strategy](installation-strategy.md) before populating a shared
+agents directory alongside an agent-specific one.
