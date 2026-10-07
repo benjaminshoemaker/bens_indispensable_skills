@@ -12,7 +12,7 @@ Invoke OpenAI's Codex CLI to review a document or plan, with instructions to res
 ## When to Use
 
 - You want a second opinion on a generated spec, plan, or document
-- Cross-model consultation on non-code content (specs, plans, configs)
+- Independent consultation on non-code content (specs, plans, configs)
 - Other skills can invoke this automatically for document review
 - You want Codex to research current documentation before evaluating content
 
@@ -100,7 +100,7 @@ Do NOT attempt alternative commands or workarounds. Return status: `skipped`.
 
 ### Read Configuration
 
-Read `.claude/settings.local.json` for settings:
+If present, read optional shared settings from `.claude/settings.local.json`; otherwise use the defaults below:
 
 ```bash
 # Read model from config (codexConsult with fallback to codexReview)
@@ -274,7 +274,7 @@ structured data:
 
 ## Configuration
 
-Read from `.claude/settings.local.json`:
+If present, read optional shared settings from `.claude/settings.local.json`; otherwise use the defaults below:
 
 ```json
 {

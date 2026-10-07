@@ -5,6 +5,9 @@ Template for the prompt sent to Codex CLI for document consultation.
 ## Structure
 
 ```markdown
+You are the delegated worker. Complete the assigned task directly and return
+the requested result to the parent agent, which owns further delegation.
+
 # Pre-Consultation Research (REQUIRED)
 
 Before reviewing the document, research the following:

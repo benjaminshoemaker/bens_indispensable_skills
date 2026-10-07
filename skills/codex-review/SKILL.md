@@ -15,7 +15,7 @@ Invoke OpenAI's Codex CLI to review the current branch, with instructions to res
 - You want cross-verification between different AI models
 - The implementation uses tools/libraries where current docs would help
 - You've completed a feature and want thorough review before merging
-- Can be invoked by other workflow skills for automated cross-model review
+- Can be invoked by other workflow skills for independent review
 
 ## Prerequisites
 
@@ -100,7 +100,7 @@ Do NOT attempt alternative commands or workarounds. Return status: `skipped`.
 
 ### Read Configuration
 
-Read `.claude/settings.local.json` for settings:
+If present, read optional shared settings from `.claude/settings.local.json`; otherwise use the defaults below:
 
 ```bash
 # Read config
@@ -259,7 +259,7 @@ When invoked by another skill, return structured data:
 
 ## Configuration
 
-Read from `.claude/settings.local.json`:
+If present, read optional shared settings from `.claude/settings.local.json`; otherwise use the defaults below:
 
 ```json
 {

@@ -1,21 +1,21 @@
 ---
 name: codex-implement
-description: Use when delegating code implementation to Codex CLI with Claude-managed decomposition, context scoping, and verification.
+description: Use when delegating code implementation to Codex CLI with task decomposition, context scoping, and verification.
 argument-hint: "[SPEC_FILE | \"description\"] [--consult] [--no-commit] [--dry-run] [--batch] [--model MODEL]"
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
 ---
 
 # Codex Implement
 
-Delegate bounded implementation tasks to OpenAI Codex CLI. Claude acts as
-Architect (decomposes, selects context, verifies); Codex acts as Editor
-(implements each bounded task).
+Delegate bounded implementation tasks to a separate OpenAI Codex CLI session.
+The parent agent decomposes the work, selects
+context, and verifies the result. The child session implements each bounded task.
 
 ## When to Use
 
 - Ad-hoc implementation: "have Codex build this"
-- Cross-model implementation for blind-spot coverage
-- When you want Claude to orchestrate and verify, not write the code itself
+- Implementation in a separate session with focused context
+- When you want the parent agent to coordinate and verify delegated work
 
 ## Arguments
 
@@ -68,7 +68,7 @@ Auth:    codex login
 
 ### Load Configuration
 
-Read `.claude/settings.local.json`:
+If present, read optional shared settings from `.claude/settings.local.json`; otherwise use the defaults below:
 
 ```bash
 CODEX_MODEL=$(jq -r '.codexImplement.model // .codexReview.codeModel // empty' .claude/settings.local.json 2>/dev/null)
@@ -108,14 +108,14 @@ If `INPUT` is a file path that exists:
 
 If `INPUT` is quoted text (not a file path):
 
-1. Claude explores the codebase to understand the affected area:
+1. The parent agent explores the codebase to understand the affected area:
    - Glob for relevant files
    - Read key files to understand patterns
    - Identify what exists vs. what needs to be built
 2. Generate an **Implementation Brief** (internal, not written to disk):
    - What to build (from user's description)
    - Affected files (from codebase exploration)
-   - Success criteria (Claude generates testable criteria)
+   - Success criteria (the parent agent generates testable criteria)
    - Constraints (from AGENTS.md and codebase conventions)
 3. If `BATCH` is false: Present brief to user via AskUserQuestion for confirmation
 
@@ -158,7 +158,7 @@ Constraints:
 
 See [DECOMPOSITION.md](DECOMPOSITION.md) for the full decision tree.
 
-Claude reads the Implementation Brief and decides single vs. multi-task:
+The parent agent reads the Implementation Brief and decides single vs. multi-task:
 
 **Single task** if ALL of:
 - Touches ≤ 3 files
@@ -328,8 +328,8 @@ See [VERIFICATION.md](VERIFICATION.md) for the full verification strategy.
 4-tier verification:
 1. **Scope guard**: `git diff --name-only` — did Codex only touch expected files?
 2. **Automated checks**: Run tests/lint/typecheck if configured
-3. **Claude review**: Read `git diff`, compare against success criteria
-4. **Cross-model review** (only with `--consult`): Run `/codex-review` on the changes
+3. **Parent review**: Read `git diff`, compare against success criteria
+4. **Independent review** (only with `--consult`): Run `/codex-review` on the changes
 
 ### Step 7: Commit or Rollback
 

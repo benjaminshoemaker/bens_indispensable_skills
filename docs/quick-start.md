@@ -66,9 +66,9 @@ Expected result:
 The remaining examples require their named skills. Install them selectively as
 they become useful rather than treating the walkthrough as a required sequence.
 
-## 4. Use Codex As A Second Model
+## 4. Delegate to a Separate Codex Session
 
-During feature work, use Codex for planning, review, and scoped implementation:
+From Claude Code, use a separate Codex CLI session for planning, review, and scoped implementation. These skills remain installed in Codex but skip there:
 
 ```text
 /codex-consult FEATURE_SPEC.md

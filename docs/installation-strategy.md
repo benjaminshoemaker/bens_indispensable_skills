@@ -16,37 +16,19 @@ truth.
 - Use symlinks only while actively developing a skill and replace them with
   copies when the change is complete.
 
-## Recommended Codex Profile
+## Recommended Profile for Claude Code and Codex
 
-Codex does not need the three `codex-*` cross-model skills. Install the general
-research, design, verification, review, and strategy capabilities directly:
-
-```bash
-./install.sh --method copy --force --dest ~/.codex/skills \
-  --skill project-research \
-  --skill design-directions \
-  --skill discover-flow-verification \
-  --skill data-flow-audit \
-  --skill innovate \
-  --skill search-chats \
-  --skill security-scan \
-  --skill tone-check \
-  --skill ui-ux \
-  --skill audit-skills
-```
-
-## Recommended Claude Code Profile
-
-Claude Code can use the same general skills plus the three skills that bring in
-Codex as a second model:
+Use the same curated set of 15 skills in both clients, including the three
+`codex-*` skills and the two prompt skills. The three Codex workflows keep their
+skip-when-inside-Codex guards; installing the same set does not change that behavior.
 
 ```bash
-./install.sh --method copy --force --dest ~/.claude/skills \
-  --all
+./install.sh --method copy --force --dest ~/.codex/skills --all
+./install.sh --method copy --force --dest ~/.claude/skills --all
 ```
 
-`--all` is appropriate here only because this repository is already the curated
-Claude Code collection. Reconsider that choice whenever the catalog grows.
+`--all` selects the current curated catalog. Review additions before repeating
+these commands when the catalog grows.
 
 ## Updating Installed Copies
 

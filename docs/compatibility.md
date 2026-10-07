@@ -1,5 +1,11 @@
 # Compatibility
 
+The same skill set is installed for Claude Code and Codex. The three `codex-*`
+skills skip when already running inside Codex. Otherwise, they require an
+authenticated Codex CLI that the calling environment can run.
+Their optional `.claude/settings.local.json` settings are shared legacy
+configuration, not a requirement to use Claude Code.
+
 This table summarizes what each skill needs in order to work well.
 
 | Skill | Requires | Optional Context | Notes |
@@ -13,6 +19,8 @@ This table summarizes what each skill needs in order to work well.
 | `discover-flow-verification` | A concrete flow claim to analyze | Product docs, test setup, provider sandbox details | Produces a verification-harness plan; does not implement it by itself. |
 | `innovate` | Product or repo context | Web access, specs, plans, README | Selects one recommendation, shows runners-up, and favors compounding value. |
 | `project-research` | A domain, thesis, opportunity comparison, or early product question | Web access, repository context, prior research | Tracks falsification and changing hypotheses; reconciles durable context only when it will remain useful. |
+| `prompt-audit` | A prompt, skill, or agent instruction to inspect | Runtime context, representative outputs, official model documentation | Recommends changes by default; works independently of prompt-maintainer. |
+| `prompt-maintainer` | An existing prompt and a requested revision or observed problem | Examples and the governing instructions | Preserves the agreed contract; does not require prompt-audit first. |
 | `search-chats` | Local Claude Code or Codex CLI session logs | Project filter, agent filter | Searches `~/.claude/projects` and `~/.codex/sessions`; not useful without local logs. |
 | `security-scan` | A repository to inspect | Project-native dependency and static-analysis commands | Does not install missing scanners or apply fixes automatically. |
 | `tone-check` | A document to inspect | At least five reliable user-authored session samples | Reports marker analysis without a voice-match score when samples are insufficient. |

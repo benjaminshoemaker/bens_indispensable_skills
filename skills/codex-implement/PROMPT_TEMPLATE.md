@@ -6,6 +6,9 @@ piped to `codex exec` for each bounded task.
 ## Template
 
 ```markdown
+You are the delegated worker. Complete the assigned task directly and return
+the requested result to the parent agent, which owns further delegation.
+
 # Implementation Task
 
 ## Project Context
@@ -82,7 +85,7 @@ Suggestion: {what the orchestrator could do to unblock}
 |----------|--------|----------|
 | `{AGENTS_PATH}` | Project root `AGENTS.md` or `CLAUDE.md` | No (include when present) |
 | `{file_path}` | From Implementation Brief `affected_files` | Yes |
-| `{reason}` | Claude's assessment of why the file matters for this task | Yes |
+| `{reason}` | The parent agent's assessment of why the file matters for this task | Yes |
 | `{task_description}` | From Implementation Brief or decomposed task | Yes |
 | `{criterion}` | From Implementation Brief `success_criteria` | Yes |
 | `{task_id}` | Sequential: `1`, `2`, `3`... or descriptive: `rate-limiter`, `tests` | Yes |
@@ -102,5 +105,5 @@ Per research findings, feeding only relevant context per task improves quality:
 
 - The prompt is written to a temp file and piped via stdin: `cat $FILE | codex exec ... -`
 - Output is captured via `-o $OUTPUT_FILE` flag
-- The TASK EXECUTION RESULT block is parsed by Claude after execution
+- The TASK EXECUTION RESULT block is parsed by the parent agent after execution
 - Status values: `COMPLETE` (proceed), `FAILED` (retry/skip), `BLOCKED` (needs human input)

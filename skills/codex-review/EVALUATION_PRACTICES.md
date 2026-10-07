@@ -1,6 +1,6 @@
 # Evaluation Best Practices
 
-For reliable cross-model verification, follow these patterns.
+For reliable independent review, follow these patterns.
 
 ## Rubric-First Approach
 
@@ -15,31 +15,31 @@ Use consistent severity levels:
 
 This aligns with [OpenAI's evaluation best practices](https://platform.openai.com/docs/guides/evaluation-best-practices) for LLM-as-judge patterns.
 
-## Handling Model Disagreement
+## Handling Review Disagreement
 
-When Claude and Codex disagree, follow these guidelines:
+When the parent agent and Codex reviewer disagree, follow these guidelines:
 
 | Scenario | Action |
 |----------|--------|
-| **Both agree: PASS** | High confidence, proceed |
-| **Both agree: NEEDS_ATTENTION** | High confidence, address issues |
-| **Claude: PASS, Codex: NEEDS_ATTENTION** | Review Codex's specific findings — it may have researched current docs |
-| **Claude: NEEDS_ATTENTION, Codex: PASS** | Trust Claude's context awareness, but note the disagreement |
+| **Both agree: PASS** | Proceed when the verification evidence supports it |
+| **Both agree: NEEDS_ATTENTION** | Address the supported issues |
+| **Parent: PASS, reviewer: NEEDS_ATTENTION** | Review Codex's specific findings — it may have researched current docs |
+| **Parent: NEEDS_ATTENTION, reviewer: PASS** | Check the specific concern against the code and tests |
 | **Conflicting critical issues** | Present both perspectives to user for decision |
 
 ## Disagreement Signals
 
-- If models disagree on >50% of findings, flag for human review
-- If one model finds critical issues the other missed, always surface them
-- Never silently discard findings from either model
+- If reviewers disagree on >50% of findings, flag for human review
+- If one reviewer finds critical issues the other missed, always surface them
+- Never silently discard findings from either reviewer
 
 ## Resolution Strategies
 
-1. **Union approach** (default): Surface all unique findings from both models
-2. **Intersection approach**: Only flag issues both models identified (higher precision, lower recall)
-3. **Weighted approach**: Weight findings by model strength (e.g., Codex for current docs, Claude for context)
+1. **Union approach** (default): Surface all unique findings from both reviews
+2. **Intersection approach**: Only flag issues both reviews identified (higher precision, lower recall)
+3. **Weighted approach**: Weight findings by supporting evidence and relevant context
 
-**When in doubt:** Present disagreements to the user with context from both models. The goal is catching blind spots, not achieving false consensus.
+**When in doubt:** Present disagreements to the user with context from both reviews. The goal is catching blind spots, not achieving false consensus.
 
 ## Status Mapping
 

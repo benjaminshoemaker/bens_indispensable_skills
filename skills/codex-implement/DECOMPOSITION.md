@@ -69,7 +69,7 @@ If decomposition produces more tasks than the cap:
    ```
 2. Offer options via AskUserQuestion:
    - "Proceed anyway" — execute all tasks
-   - "Reduce scope" — Claude suggests which tasks to cut
+   - "Reduce scope" — the parent agent suggests which tasks to cut
    - "Use full workflow" — redirect to `/feature-spec`
 
 ## Single-File Overlap

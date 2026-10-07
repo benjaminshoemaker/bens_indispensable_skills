@@ -2,13 +2,13 @@
 
 4-tier verification for `/codex-implement` tasks. Unlike `/phase-start` which has
 formal acceptance criteria from an execution plan, ad-hoc implementation uses
-Claude-generated success criteria from the Implementation Brief.
+success criteria defined by the parent agent from the Implementation Brief.
 
 ## Tier 1: Scope Guard
 
 **Purpose**: Detect if Codex modified files outside the expected scope.
 
-Claude performs this check logically (not as a script):
+The parent agent performs this check logically (not as a script):
 
 1. Run `git diff --name-only` to get the list of changed files
 2. Compare each changed file against the expected files from the task
@@ -54,13 +54,13 @@ npm test 2>&1 || TEST_FAILED=true
 - Include failure details in the task result for the summary
 
 **If no checks are configured**: Skip this tier with a note:
-"No automated checks configured. Relying on Claude review."
+"No automated checks configured. Relying on parent review."
 
-## Tier 3: Claude Diff Review
+## Tier 3: Parent Diff Review
 
 **Purpose**: Semantic verification — do the changes match the success criteria?
 
-Claude reads the full diff and evaluates:
+The parent agent reads the full diff and evaluates:
 
 1. **Completeness**: Does each success criterion have corresponding code?
 2. **Correctness**: Does the implementation logic match the intent?
@@ -68,11 +68,11 @@ Claude reads the full diff and evaluates:
 4. **Side effects**: Are there unintended changes, debug code, or TODOs left behind?
 
 ```bash
-# Get the diff for Claude to review
+# Get the diff for the parent agent to review
 git diff
 ```
 
-Claude produces a verdict:
+The parent agent produces a verdict:
 - **PASS**: All criteria met, no issues
 - **PASS_WITH_NOTES**: Criteria met, minor observations (proceed but note them)
 - **NEEDS_ATTENTION**: Issues found that should be addressed before committing
@@ -81,9 +81,9 @@ Claude produces a verdict:
 - Report specific issues
 - Ask user: "Fix issues and retry" / "Accept as-is" / "Revert"
 
-## Tier 4: Cross-Model Review (Optional)
+## Tier 4: Independent Review (Optional)
 
-**Purpose**: Exploit different blind spots between models.
+**Purpose**: Review the implementation in a separate session with focused context.
 
 Only runs when `--consult` flag was provided.
 
@@ -91,9 +91,8 @@ Only runs when `--consult` flag was provided.
 2. Invoke `/codex-review` on the diff (Codex reviews its own implementation)
 3. Present findings to user
 
-This catches issues that Claude's review might miss due to shared architectural
-assumptions with the implementer. Research shows 2-3 cross-model review rounds
-catch the most issues, but for ad-hoc tasks a single round is sufficient.
+This review can surface additional findings. Assess them against the diff and
+verification evidence; a separate session does not guarantee different blind spots.
 
 **Important**: This tier is advisory. Findings do not block the commit unless the
 user chooses to act on them.
@@ -109,10 +108,10 @@ Task complete
   ├─ Tier 2: Automated checks
   │   └─ Failure? → Report, ask user
   │
-  ├─ Tier 3: Claude diff review
+  ├─ Tier 3: Parent diff review
   │   └─ NEEDS_ATTENTION? → Report, ask user
   │
-  ├─ Tier 4: Cross-model (if --consult)
+  ├─ Tier 4: Independent review (if --consult)
   │   └─ Issues? → Report (advisory)
   │
   └─ All passed → Commit (unless --no-commit)

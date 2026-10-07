@@ -1,7 +1,7 @@
 # Ben's Indispensable Skills
 
 A curated set of AI coding-agent skills I use while researching and building
-apps: project discovery, cross-model Codex workflows, flow verification,
+apps: project discovery, Codex consultation and delegation, flow verification,
 audits, and product/UX strategy.
 
 Some skills originated in the
@@ -28,11 +28,10 @@ These show up in most feature work, especially as a feature gets close to done.
 - `discover-flow-verification` — Design a repeatable verification harness for a
   specific user or integration flow.
 
-### Conditional: Claude Code Cross-Model Workflow
+### Codex Consultation, Review, and Implementation
 
-These are indispensable when I am working in Claude Code: I use them on an
-hourly or daily basis to bring Codex in as a second model. When I am using Codex
-directly, I do not use these skills.
+Install these in both clients. They delegate bounded work to Codex CLI when
+called outside Codex, and skip when already running inside Codex.
 
 - `codex-consult` — Get Codex feedback on docs, specs, plans, and other
   non-code-diff content.
@@ -66,6 +65,10 @@ This is mostly for maintaining skill repos and prompt systems.
 
 - `audit-skills` — Audit skills, commands, and prompt templates for common
   quality issues.
+- `prompt-audit` — Reassess prompts, skills, and agent instructions for useful
+  constraints, obsolete assumptions, and conflicting responsibilities.
+- `prompt-maintainer` — Apply a chosen prompt revision while preserving its
+  purpose and boundaries and avoiding accumulated instruction bloat.
 
 ## Use Skills Directly
 
@@ -124,7 +127,7 @@ Use symlinks only for active skill development:
 ```
 
 See [Installation Strategy](docs/installation-strategy.md) for recommended
-Codex and Claude Code profiles, updates, and cleanup guidance.
+shared Codex and Claude Code profile, updates, and cleanup guidance.
 
 Restart your agent after installing so it can reload available skills.
 
