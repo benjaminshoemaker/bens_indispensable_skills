@@ -21,7 +21,7 @@ This table summarizes what each skill needs in order to work well.
 | `project-research` | A domain, thesis, opportunity comparison, or early product question | Web access, repository context, prior research | Tracks falsification and changing hypotheses; reconciles durable context only when it will remain useful. |
 | `prompt-audit` | A prompt, skill, or agent instruction to inspect | Runtime context, representative outputs, official model documentation | Recommends changes by default; works independently of prompt-maintainer. |
 | `prompt-maintainer` | An existing prompt and a requested revision or observed problem | Examples and the governing instructions | Preserves the agreed contract; does not require prompt-audit first. |
-| `search-chats` | Local Claude Code or Codex CLI session logs | Project filter, agent filter | Searches `~/.claude/projects` and `~/.codex/sessions`; not useful without local logs. |
+| `search-chats` | Native Codex chat tools or accessible local session logs | Project, agent, and time filters; decompressor for compressed logs | Prefers native Codex retrieval; local fallback includes Claude Code, active and archived Codex logs, and compressed transcripts. Native listings are not full-text search. |
 | `security-scan` | A repository to inspect | Project-native dependency and static-analysis commands | Does not install missing scanners or apply fixes automatically. |
 | `tone-check` | A document to inspect | At least five reliable user-authored session samples | Reports marker analysis without a voice-match score when samples are insufficient. |
 | `ui-ux` | UI code or product context | Web access, design tokens, component library | Works as an audit or design-planning skill. |

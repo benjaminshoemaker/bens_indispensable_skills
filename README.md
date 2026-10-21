@@ -44,7 +44,8 @@ called outside Codex, and skip when already running inside Codex.
 These are less frequent than the daily skills, but very high value for aligning
 the product, finding common issues, and surfacing ideas I had not considered.
 
-- `search-chats` — Search local Claude Code and Codex CLI session transcripts.
+- `search-chats` — Recover prior discussions using native Codex chat tools and
+  local Codex or Claude Code transcripts.
 - `data-flow-audit` — Detect split data sources, duplicated business rules, and
   cross-layer formula drift.
 - `ui-ux` — Audit or design UI/UX using product context, code review, and design

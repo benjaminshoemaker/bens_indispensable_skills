@@ -117,4 +117,5 @@ Expected result:
 - `data-flow-audit` finds duplicated business rules and split data sources.
 - `security-scan` checks dependencies, secrets, and project-native analyzers.
 - `tone-check` flags formulaic writing and personal-voice mismatches.
-- `search-chats` recovers prior decisions from local agent sessions.
+- `search-chats` recovers prior discussions through native Codex chat tools,
+  with local transcript search for broader queries and Claude Code history.
