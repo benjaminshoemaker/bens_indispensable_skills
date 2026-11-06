@@ -18,7 +18,7 @@ truth.
 
 ## Recommended Profile for Claude Code and Codex
 
-Use the same curated set of 15 skills in both clients, including the three
+Use the same deliberately selected skills in both clients, including the three
 `codex-*` skills and the two prompt skills. The three Codex workflows keep their
 skip-when-inside-Codex guards; installing the same set does not change that behavior.
 

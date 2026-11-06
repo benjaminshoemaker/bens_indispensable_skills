@@ -26,6 +26,19 @@ This table summarizes what each skill needs in order to work well.
 | `tone-check` | A document to inspect | At least five reliable user-authored session samples | Reports marker analysis without a voice-match score when samples are insufficient. |
 | `ui-ux` | UI code or product context | Web access, design tokens, component library | Works as an audit or design-planning skill. |
 
+## Product-work additions
+
+| Skill | Required context | Execution limits |
+|---|---|---|
+| `iterate-prompts` | Existing prompt, examples, and a permitted runner for empirical comparisons | Without a runner, diagnosis and a draft remain possible; measured improvement remains unverified. The comparison-note reference is packaged with the skill. |
+| `prepare-pr` | Existing implementation, Git, repository checks; GitHub access for live review state | No push, merge, or deployment authority. |
+| `google-doc-structure` | Authorized document access through a connector, configured API, or authenticated browser | No Google connector or credential is bundled. |
+
+All three use standard `SKILL.md` name/description frontmatter and plain Markdown.
+Install selectively through the existing installer for Claude Code or Codex.
+Static packaging checks do not establish authentication or behavioral quality in
+every client; connectors and live model execution remain environment-specific.
+
 ## Common Skill Directories
 
 Different agents look for skills in different places. Prefer one destination

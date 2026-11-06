@@ -71,6 +71,15 @@ This is mostly for maintaining skill repos and prompt systems.
 - `prompt-maintainer` — Apply a chosen prompt revision while preserving its
   purpose and boundaries and avoiding accumulated instruction bloat.
 
+## Product and AI Work
+
+- `iterate-prompts` — Compare prompt revisions under matched conditions and verify the final artifact.
+- `prepare-pr` — Prepare an existing implementation for engineering review.
+- `google-doc-structure` — Establish tab hierarchy and read coverage before using a Google Doc.
+
+These skills use the sources and execution permissions of the current project.
+They require no particular company's paths, integrations, credentials, or data.
+
 ## Use Skills Directly
 
 This repository is a catalog, not a feature-development lifecycle. Install and
@@ -156,3 +165,7 @@ See [Quick Start](docs/quick-start.md) for a short walkthrough of:
 - [Canonical Reconciliation](docs/canonical-reconciliation.md) — How skills
   were retained, promoted, or held during the toolkit transition.
 - [LICENSE](LICENSE) — MIT license.
+
+## Canonical ownership
+
+See [ownership and reuse](docs/ownership.md). This library owns generic skill instructions; private PM methods and career evidence stay in their respective workspaces.
