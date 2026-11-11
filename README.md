@@ -10,6 +10,16 @@ but this repository is the canonical home for the smaller, independent
 capabilities I actually reach for. Skills here should remain useful without
 adopting the toolkit's end-to-end delivery workflow.
 
+## Where these help
+
+`data-flow-audit` is for cases where two parts of an app disagree about a
+number. It traces the calculation and checks whether the disagreement is
+real before recommending a fix.
+
+`discover-flow-verification` works through how an agent can verify a user
+flow, including the setup and evidence it needs. `tone-check` checks writing
+for stock AI phrasing and compares it with samples of the author's voice.
+
 ## Skill Tiers
 
 ### Project Discovery
